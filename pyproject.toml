@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "volunteer-rescue"
+version = "0.1.0"
+description = ""
+authors = ["Denis Bolshakov <dreu007@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+Django = "^5.0.2"
+
+[tool.poetry.group.dev.dependencies]
+python-dotenv = "^1.0.1"
+dj-database-url = "^2.1.0"
+django-extensions = "^3.2.3"
+psycopg2-binary = "^2.9.9"
+gunicorn = "^21.2.0"
+django-bootstrap5 = "^23.4"
+flake8 = "^7.0.0"
+ipython = "^8.21.0"
+coverage = "^7.4.1"
+selenium = "^4.17.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
