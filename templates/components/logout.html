@@ -1,0 +1,7 @@
+{% load i18n django_bootstrap5 %}
+<form action="{% url 'logout' %}" method="post" class="form">
+	{% csrf_token %}
+
+	{% translate 'log out'|capfirst as button_name %}
+	{% bootstrap_button button_type="submit" content=button_name %}
+</form>
