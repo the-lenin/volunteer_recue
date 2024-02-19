@@ -1,3 +1,7 @@
+{% load django_bootstrap5 i18n %}
+
+{% bootstrap_css %}
+{% bootstrap_javascript %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +9,7 @@
 	<title></title>
 </head>
 <body>
-	<h1>Index page</h1>
-	{% block content %}{% endblock %}
+	{% include 'components/logout.html' %}
+	{% block content %}<h1>Index page</h1>{% endblock %}
 </body>
 </html>
