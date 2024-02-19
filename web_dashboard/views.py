@@ -1,10 +1,11 @@
 from django.views import View
 from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 
-class IndexView(View):
+class IndexView(LoginRequiredMixin, View):
     """Root index view after logging."""
-    @login_required
+    login_url = 'login'
+
     def get(self, request, *args, **kwargs):
         return render(request, 'index.html')
