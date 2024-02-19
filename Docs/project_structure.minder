@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<minder version="1.16.3" parent-etag="885488142" etag="2592777471">
-  <theme name="solarized_dark" label="Solarized Dark" index="1"/>
+<minder version="1.16.3" parent-etag="2507246914" etag="1402287290">
+  <theme name="solarized_dark" label="Solarized Dark" index="3"/>
   <styles>
     <style level="0" isset="true" branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="false" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="10" nodepadding="10" nodefont="Sans 11" nodemarkup="true" connectiondash="dotted" connectionlwidth="2" connectionarrow="fromto" connectionpadding="3" connectionfont="Sans 10" connectiontwidth="100" calloutfont="Sans 12" calloutpadding="5" calloutptrwidth="20" calloutptrlength="20"/>
     <style level="1" isset="true" branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="false" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true" connectiondash="dotted" connectionlwidth="2" connectionarrow="fromto" connectionpadding="3" connectionfont="Sans 10" connectiontwidth="100" calloutfont="Sans 12" calloutpadding="5" calloutptrwidth="20" calloutptrlength="20"/>
@@ -23,21 +23,21 @@
       </nodename>
       <nodenote></nodenote>
     </node>
-    <node id="2" posx="1184.5000000000002" posy="-328.758620689655" width="175" height="64" side="right" fold="false" treesize="92" summarized="false" layout="Horizontal" group="false">
+    <node id="2" posx="1183.4999999999998" posy="-328.758620689655" width="175" height="64" side="left" fold="false" treesize="92" summarized="false" layout="Horizontal" group="false">
       <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="true" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
       <nodename maxwidth="200">
         <text data="Back-end&#10;(Python Django 5.0)"/>
       </nodename>
       <nodenote></nodenote>
       <nodes>
-        <node id="3" posx="1459.5000000000002" posy="-342.758620689655" width="116" height="46" side="right" fold="false" treesize="46" color="#dc322f" colorroot="false" summarized="false" layout="Horizontal" group="false">
+        <node id="3" posx="1458.4999999999998" posy="-342.758620689655" width="116" height="46" side="right" fold="false" treesize="46" color="#dc322f" colorroot="false" summarized="false" layout="Horizontal" group="false">
           <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="true" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
           <nodename maxwidth="200">
             <text data="Python 3.11"/>
           </nodename>
           <nodenote></nodenote>
         </node>
-        <node id="4" posx="1459.5000000000002" posy="-296.758620689655" width="192" height="46" side="right" fold="false" treesize="46" color="#cb4b16" colorroot="false" summarized="false" layout="Horizontal" group="false">
+        <node id="4" posx="1458.4999999999998" posy="-296.758620689655" width="192" height="46" side="right" fold="false" treesize="46" color="#cb4b16" colorroot="false" summarized="false" layout="Horizontal" group="false">
           <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="true" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
           <nodename maxwidth="200">
             <text data="Django Framework 5.0"/>
@@ -46,11 +46,39 @@
         </node>
       </nodes>
     </node>
+    <node id="6" posx="1222.4999999999998" posy="-151.758620689655" width="97" height="46" side="left" fold="false" treesize="92" summarized="false" layout="Horizontal" group="false">
+      <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="false" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
+      <nodename maxwidth="200">
+        <text data="Front-end"/>
+      </nodename>
+      <nodenote></nodenote>
+      <nodes>
+        <node id="8" posx="1419.4999999999998" posy="-174.758620689655" width="114" height="46" side="right" fold="false" treesize="46" color="#dc322f" colorroot="false" summarized="false" layout="Horizontal" group="false">
+          <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="false" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
+          <nodename maxwidth="200">
+            <text data="Bootstrap 5"/>
+          </nodename>
+          <nodenote></nodenote>
+        </node>
+        <node id="9" posx="1419.4999999999998" posy="-128.758620689655" width="158" height="46" side="right" fold="false" treesize="46" color="#cb4b16" colorroot="false" summarized="false" layout="Horizontal" group="false">
+          <style branchmargin="100" branchradius="25" linktype="straight" linkwidth="4" linkarrow="false" linkdash="solid" nodeborder="squared" nodewidth="200" nodeborderwidth="4" nodefill="false" nodemargin="8" nodepadding="6" nodefont="Sans 11" nodemarkup="true"/>
+          <nodename maxwidth="200">
+            <text data="Django Templates"/>
+          </nodename>
+          <nodenote></nodenote>
+        </node>
+      </nodes>
+    </node>
   </nodes>
   <groups/>
   <connections>
-    <connection from_id="2" to_id="0" drag_x="1271.375" drag_y="-382.71695402298838">
+    <connection from_id="2" to_id="0" drag_x="1270.625" drag_y="-382.71695402298894">
       <style connectiondash="solid" connectionlwidth="2" connectionarrow="both" connectionpadding="11" connectionfont="Sans 10" connectiontwidth="100"/>
+      <title></title>
+      <note></note>
+    </connection>
+    <connection from_id="2" to_id="6" drag_x="1270.9999999999998" drag_y="-212.758620689655">
+      <style connectiondash="dotted" connectionlwidth="2" connectionarrow="both" connectionpadding="3" connectionfont="Sans 10" connectiontwidth="100"/>
       <title></title>
       <note></note>
     </connection>
