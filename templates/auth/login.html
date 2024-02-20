@@ -13,6 +13,9 @@
 		{% translate 'log in'|capfirst as button_name %}
 		{% bootstrap_button button_type="submit" content=button_name %}
 
+		<!-- Forgot password -->
+		<a href="{% url 'password_reset' %}">{% trans 'forgot password?'|capfirst %}</a>
+
 		<!-- User agreement -->
 		{% include 'auth/user_agreement.html' %}
 	</form>
