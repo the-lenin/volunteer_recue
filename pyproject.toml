@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Denis Bolshakov <dreu007@gmail.com>"]
 readme = "README.md"
+packages = [{include = "web_dashboard"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
