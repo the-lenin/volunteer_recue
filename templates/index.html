@@ -5,4 +5,7 @@
 {% bootstrap_css %}
 {% bootstrap_javascript %}
 
-	{% block content %}<h1>Index page</h1>{% endblock %}
+	{% block content %}
+	{% include 'components/navbar.html' %}
+	<h1>Index page</h1>
+	{% endblock %}
