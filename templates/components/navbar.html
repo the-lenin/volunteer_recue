@@ -3,7 +3,7 @@
 <nav class="navbar navbar-expand-lg bg-body-tertiary">
   <div class="container-fluid">
 		<!-- LOGO -->
-    <a class="navbar-brand" href="#">
+		<a class="navbar-brand" href="{% url 'index' %}">
 			<img src="{% static '/logo.png' %}" alt="Logo" width="40" height="40" class="d-inline-block align-text-top">
     </a>
 
@@ -13,23 +13,49 @@
 
 		<div class="collapse navbar-collapse" id="navbarSupportedContent">
 			<ul class="navbar-nav me-auto mb-2 mb-lg-0">
+				<!-- Home -->
 				<li class="nav-item">
-					<a class="nav-link active" aria-current="page" href="#">Home</a>
+					<a class="nav-link active" aria-current="page" href="{% url 'index' %}">{% trans 'home'|capfirst %}</a>
 				</li>
+
+				<!-- Group manager -->
 				<li class="nav-item">
-					<a class="nav-link" href="#">Link</a>
+					<a class="nav-link" href="#">{% trans "group manager"|capfirst %}</a>
 				</li>
+
+				<!-- Account manager-->
+				<li class="nav-item">
+					<a class="nav-link" href="#">{% trans "account manager"|capfirst %}</a>
+				</li>
+
+				<!-- Requests -->
+				<li class="nav-item">
+					<a class="nav-link" href="#">{% trans "requests"|capfirst %}</a>
+				</li>
+
+				<!-- Logistics manager-->
+				<li class="nav-item">
+					<a class="nav-link" href="#">{% trans "logistics manager"|capfirst %}</a>
+				</li>
+
+				<!-- Reports -->
+				<li class="nav-item">
+					<a class="nav-link" href="#">{% trans "reports"|capfirst %}</a>
+				</li>
+
+				<!-- Tools -->
 				<li class="nav-item dropdown">
 					<a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-						Dropdown
+						{% trans 'tools'|capfirst %}
 					</a>
 					<ul class="dropdown-menu">
-						<li><a class="dropdown-item" href="#">Action</a></li>
-						<li><a class="dropdown-item" href="#">Another action</a></li>
+						<li><a class="dropdown-item" href="#">{% trans 'Telegram bot "Smart search"' %}</a></li>
+						<li><a class="dropdown-item" href="#">{% trans 'Request coordinates' %}</a></li>
 						<li><hr class="dropdown-divider"></li>
-						<li><a class="dropdown-item" href="#">Something else here</a></li>
+						<li><a class="dropdown-item" href="#">{% trans 'Compas-director' %}</a></li>
 					</ul>
 				</li>
+
 				<li class="nav-item">
 					<a class="nav-link disabled" aria-disabled="true">Disabled</a>
 				</li>
