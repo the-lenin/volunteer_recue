@@ -9,8 +9,16 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
+import os
+import dj_database_url
 
 from pathlib import Path
+from distutils.util import strtobool
+
+from dotenv import load_dotenv
+
+# Load local enviroment .env
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,13 +28,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-t-22xjw5pig720md6a75*3g)(q_6b^vxnq#r(cs-&_yz)=l11u'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = bool(strtobool(os.getenv('DEBUG', 'False')))
 
-ALLOWED_HOSTS = []
+LOCAL_HOST = os.getenv('HOST')
 
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'webserver',
+    LOCAL_HOST,
+]
+
+# EXTERNAL_HOSTNAME is used on external deploy services like render.com
+EXTERNAL_HOSTNAME = os.getenv('EXTERNAL_HOSTNAME')
+if EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(EXTERNAL_HOSTNAME)
 
 # Application definition
 
@@ -36,20 +55,40 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    "whitenoise.runserver_nostatic",
     'django.contrib.staticfiles',
     'django_extensions',
     'django_bootstrap5',
+    'web_dashboard',
+    # 'web_dashboard.auth',
+    # 'web_dashboard.users',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# Rollbar errors notifier
+# At the moment it is not set up
+# if not DEBUG:
+#     MIDDLEWARE.append(
+#         'rollbar.contrib.django.middleware.RollbarNotifierMiddleware',
+#     )
+
+# ROLLBAR = {
+#     'access_token': os.getenv('ROLLBAR_TOKEN', False),
+#     'environment': 'development' if DEBUG else 'production',
+#     'code_version': '1.0',
+#     'root': BASE_DIR,
+# }
 
 ROOT_URLCONF = 'web_dashboard.urls'
 
@@ -76,11 +115,22 @@ WSGI_APPLICATION = 'web_dashboard.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv(
+            'DATABASE_URL',
+            'postgresql://postgres:postgres@localhost:5432/postgres'
+        ),
+        conn_max_age=600
+    )
 }
+
+SQLITE_SETTINGS = {
+    'ENGINE': 'django.db.backends.sqlite3',
+    'NAME': BASE_DIR / 'db.sqlite3',
+}
+
+if os.getenv('DB_ENGINE', 'SQLite') == 'SQLite':
+    DATABASES['default'] = SQLITE_SETTINGS
 
 
 # Password validation
@@ -88,24 +138,33 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',  # noqa: E501
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',  # noqa: E501
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',  # noqa: E501
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',  # noqa: E501
     },
 ]
 
+# Authentification settings
+# https://docs.djangoproject.com/en/5.0/ref/settings/#sessions
+
+SESSION_COOKIE_AGE = 60 * 60 * 24  # 24 hours in seconds
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru-RU'
+
+LANGUAGES = [
+    ('en', 'English'),
+    ('ru', 'Russian'),
+]
 
 TIME_ZONE = 'UTC'
 
@@ -118,6 +177,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+if not DEBUG:
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
