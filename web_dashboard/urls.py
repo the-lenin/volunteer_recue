@@ -21,6 +21,6 @@ from . import views
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
-    path('', include('web_dashboard.auth.urls')),
+    path('', include('web_dashboard.custom_auth.urls')),
     path('admin/', admin.site.urls),
 ]

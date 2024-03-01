@@ -60,8 +60,8 @@ INSTALLED_APPS = [
     'django_extensions',
     'django_bootstrap5',
     'web_dashboard',
-    # 'web_dashboard.auth',
-    # 'web_dashboard.users',
+    'web_dashboard.custom_auth',
+    'web_dashboard.users',
 ]
 
 MIDDLEWARE = [
@@ -155,6 +155,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.0/ref/settings/#sessions
 
 SESSION_COOKIE_AGE = 60 * 60 * 24  # 24 hours in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
