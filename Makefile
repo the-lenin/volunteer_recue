@@ -15,8 +15,14 @@ install:
 	poetry install
 
 .PHONY: setup
-setup:	install migrate
+setup:	install migrate create_superuser
 	$(MANAGE) collectstatic --no-input
+	
+.PHONY: create_superuser
+create_superuser:
+	if [ "$(CREATE_SUPERUSER)" = "True" ]; then \
+    	    poetry run ./manage.py createsuperuser --no-input; \
+    	fi
 
 .PHONY: migrate
 migrate:
