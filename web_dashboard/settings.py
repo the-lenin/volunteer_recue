@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_extensions',
     'django_bootstrap5',
+    'phonenumber_field',
     'web_dashboard',
     'web_dashboard.custom_auth',
     'web_dashboard.users',
