@@ -63,7 +63,8 @@ INSTALLED_APPS = [
     'web_dashboard',
     'web_dashboard.custom_auth',
     'web_dashboard.users',
-]
+    'axes',
+    ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -75,6 +76,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',
 ]
 
 # Rollbar errors notifier
@@ -155,8 +157,18 @@ AUTH_PASSWORD_VALIDATORS = [
 # Authentification settings
 # https://docs.djangoproject.com/en/5.0/ref/settings/#sessions
 
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 SESSION_COOKIE_AGE = 60 * 60 * 24  # 24 hours in seconds
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# AXES settings
+# https://django-axes.readthedocs.io/en/latest/index.html
+
+AXES_COOLOFF_TIME = int(os.getenv('COOLDOWN_TIME', 2))  # Hours
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
