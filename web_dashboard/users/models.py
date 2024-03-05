@@ -77,8 +77,9 @@ class CustomUser(AbstractUser):
     REQUIRED_FIELDS = [
         'first_name',
         'last_name',
-        'address',
+        'emal'
         'phone_number',
+        'address',
         'has_car',
     ]
 
