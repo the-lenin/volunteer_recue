@@ -2,12 +2,17 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser
-# from .forms import CustomUserCreationForm
+# from .forms import CustomUserCreationForm, CustomUserChangeForm
 from django.utils.translation import gettext_lazy as _
 
 
 class CustomUserAdmin(UserAdmin):
+    """
+    CustomUserAdmin determines which fields and how they
+    displayed in Django Admin dashboard.
+    """
     model = CustomUser
+#    form = CustomUserChangeForm
 #    add_form = CustomUserCreationForm
 
     list_display = (
