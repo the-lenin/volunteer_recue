@@ -157,7 +157,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Authentification settings
 # https://docs.djangoproject.com/en/5.0/ref/settings/#sessions
 
-# AUTH_USER_MODEL = 'users.CustomUser'
+AUTH_USER_MODEL = 'users.CustomUser'
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
     'django.contrib.auth.backends.ModelBackend',
