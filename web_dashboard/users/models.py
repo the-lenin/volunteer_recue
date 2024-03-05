@@ -5,7 +5,9 @@ from phonenumber_field.modelfields import PhoneNumberField
 
 
 class CustomUser(AbstractUser):
-    """Extend AbstactUser model."""
+    """
+    Extend AbstractUser model with additional fields.
+    """
     patronymic_name = models.CharField(
         _('Patronymic'),
         max_length=64,
@@ -22,8 +24,8 @@ class CustomUser(AbstractUser):
         null=True,
     )
 
-    adress = models.CharField(
-        _('Adress'),
+    address = models.CharField(
+        _('Address'),
         max_length=255,
         help_text=_("Required 255 characters or fewer."),
     )
@@ -71,3 +73,20 @@ class CustomUser(AbstractUser):
         related_name='custom_user_permissions',
         help_text=_('Specific permissions for this user.'),
     )
+
+    REQUIRED_FIELDS = [
+        'first_name',
+        'last_name',
+        'address',
+        'phone_number',
+        'has_car',
+    ]
+
+    @property
+    def full_name(self):
+        """Return full name."""
+        names = [self.last_name, self.first_name, self.patronymic_name]
+        parts = [part for part in names if part]
+        return ' '.join(parts)
+
+    full_name.fget.short_description = _('Full name')
