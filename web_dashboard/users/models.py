@@ -3,11 +3,14 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from phonenumber_field.modelfields import PhoneNumberField
 
+# from .forms import CustomUserCreationForm
+
 
 class CustomUser(AbstractUser):
     """
     Extend AbstractUser model with additional fields.
     """
+    # form_add = CustomUserCreationForm
     patronymic_name = models.CharField(
         _('Patronymic'),
         max_length=64,
@@ -77,7 +80,7 @@ class CustomUser(AbstractUser):
     REQUIRED_FIELDS = [
         'first_name',
         'last_name',
-        'emal'
+        'email',
         'phone_number',
         'address',
         'has_car',
