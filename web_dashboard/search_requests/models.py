@@ -144,8 +144,19 @@ class SearchRequest(models.Model):
 
     status = models.CharField(
         _('Status'),
+        max_length=1,
         choices=StatusVerbose.choices,
         default=StatusVerbose.OPEN,
+    )
+
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
     )
 
 
@@ -181,6 +192,16 @@ class Reporter(models.Model):
         null=False,
     )
 
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
+    )
+
 
 class ReporterSearchRequest(models.Model):
     """
@@ -202,6 +223,8 @@ class ReporterSearchRequest(models.Model):
 
     relationship = models.CharField(
         _('Relationship'),
+        max_length=32,
+        help_text=_("Required 32 characters or fewer."),
         blank=False,
         null=False,
     )
@@ -210,6 +233,16 @@ class ReporterSearchRequest(models.Model):
         _('Additional information'),
         blank=True,
         null=True,
+    )
+
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
     )
 
     class Meta:
