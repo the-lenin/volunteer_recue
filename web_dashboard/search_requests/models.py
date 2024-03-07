@@ -8,7 +8,7 @@ PHOTOS_PATH = 'photos/'
 
 class SearchRequest(models.Model):
     """
-    Model representing search request to find missing human.
+    Model representing search request of missing individual.
     """
 
     full_name = models.CharField(
@@ -147,3 +147,70 @@ class SearchRequest(models.Model):
         choices=StatusVerbose.choices,
         default=StatusVerbose.OPEN,
     )
+
+
+class Reporter(models.Model):
+    """Class representing a person reporting missing person."""
+    first_name = models.CharField(
+        _('First name'),
+        max_length=64,
+        help_text=_("Required 64 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
+    last_name = models.CharField(
+        _('Last name'),
+        max_length=64,
+        help_text=_("Required 64 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
+    patronymic_name = models.CharField(
+        _('Patronymic name'),
+        max_length=64,
+        help_text=_("Required 64 characters or fewer."),
+        blank=True,
+        null=True,
+    )
+
+    phone_number = PhoneNumberField(
+        _('Phone number'),
+        blank=False,
+        null=False,
+    )
+
+
+class ReporterSearchRequest(models.Model):
+    """
+    Intermediary many-to-many model connecting Reporter to SearchRequest.
+    """
+    reporter = models.ForeignKey(
+        Reporter,
+        on_delete=models.CASCADE,
+        related_name='reporter',
+        verbose_name=_('Reporter'),
+    )
+
+    search_request = models.ForeignKey(
+        SearchRequest,
+        on_delete=models.CASCADE,
+        related_name='search_request',
+        verbose_name=_('Search Request'),
+    )
+
+    relationship = models.CharField(
+        _('Relationship'),
+        blank=False,
+        null=False,
+    )
+
+    additiona_info = models.TextField(
+        _('Additional information'),
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        unique_together = ('reporter', 'search_request')
