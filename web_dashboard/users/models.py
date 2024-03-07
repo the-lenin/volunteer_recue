@@ -9,7 +9,7 @@ class CustomUser(AbstractUser):
     Extend AbstractUser model with additional fields.
     """
     patronymic_name = models.CharField(
-        _('Patronymic'),
+        _('Patronymic name'),
         max_length=64,
         help_text=_("Required 64 characters or fewer."),
         blank=True,
