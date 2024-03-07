@@ -18,6 +18,7 @@ django-bootstrap5 = "^23.4"
 whitenoise = {extras = ["brotli"], version = "^6.6.0"}
 django-phonenumber-field = {extras = ["phonenumberslite"], version = "*"}
 django-axes= {extras = ["ipware"], version = "*"}
+pillow = "^10.2.0"
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.0.0"
 ipython = "^8.21.0"
