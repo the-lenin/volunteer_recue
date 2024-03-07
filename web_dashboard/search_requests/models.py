@@ -1,0 +1,149 @@
+from django.db import models
+from django.contrib.gis.db import models as gis_models
+from django.utils.translation import gettext_lazy as _
+from phonenumber_field.modelfields import PhoneNumberField
+
+PHOTOS_PATH = 'photos/'
+
+
+class SearchRequest(models.Model):
+    """
+    Model representing search request to find missing human.
+    """
+
+    full_name = models.CharField(
+        _('Full name'),
+        max_length=128,
+        help_text=_("Required 128 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
+    date_of_birth = models.DateField(
+        _('Date of birth'),
+        blank=True,
+        null=True,
+    )
+
+    class AgeVerbose(models.TextChoices):
+        """Choices for age categories."""
+        CHILD = 'CHLD', _('child')
+        TEENAGER = 'TNGR', _('teenager')
+        ADULT = 'ADLT', _('adult')
+        OLDERLY = 'OLDR', _('olderly')
+
+    age = models.CharField(
+        _('Age'),
+        max_length=4,
+        choices=AgeVerbose.choices,
+        default=AgeVerbose.ADULT,
+    )
+
+    class SexVerbose(models.TextChoices):
+        """Choices for gender (sex)."""
+        MALE = 'M', _('Male')
+        FEMALE = 'F', _('Female')
+        UNSPECIFIED = 'U', _('Unspecified')
+
+    sex = models.CharField(
+        _('Sex'),
+        max_length=1,
+        choices=SexVerbose.choices,
+        default=SexVerbose.UNSPECIFIED,
+    )
+
+    location = gis_models.PointField(
+        _('Latitutude, Longitude'),
+        blank=True,
+        null=True,
+    )
+
+    location_verbose = models.CharField(
+        _('Nearest Location'),
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+
+    disappearance_date = models.DateField(
+        _('Disappearnce Date'),
+        blank=False,
+        null=False,
+    )
+
+    circumstances = models.TextField(
+        _('Circumstances of disapprance'),
+        blank=True,
+        null=True,
+    )
+
+    phone_number = PhoneNumberField(
+        _('Phone number'),
+        blank=True,
+        null=True,
+    )
+
+    internet_data = models.TextField(
+        _('Internet Data'),
+        blank=True,
+        null=True,
+    )
+
+    features = models.TextField(
+        _('Features'),
+        blank=False,
+        null=False,
+    )
+
+    clothing = models.TextField(
+        _('Clothing'),
+        blank=False,
+        null=False,
+    )
+
+    personal_belongings = models.TextField(
+        _('Personal Belongings'),
+        blank=False,
+        null=False,
+    )
+
+    photos = models.ImageField(
+        _('Photos'),
+        upload_to=PHOTOS_PATH,
+        blank=True,
+        null=True,
+    )
+
+    health_condition = models.TextField(
+        _('Health condition'),
+        blank=False,
+        null=False,
+    )
+
+    alcohol = models.BooleanField(
+        _('Alcohol'),
+        default=False,
+    )
+
+    drugs = models.BooleanField(
+        _('Drugs'),
+        default=False,
+    )
+
+    additional_info = models.TextField(
+        _('Additional Information'),
+        blank=True,
+        null=True,
+    )
+
+    class StatusVerbose(models.TextChoices):
+        """Search request status choices."""
+        OPEN = 'O', _('Open')
+        ACTIVE = 'A', _('Active')
+        CLOSED = 'C', _('Closed')
+
+    status = models.CharField(
+        _('Status'),
+        choices=StatusVerbose.choices,
+        default=StatusVerbose.OPEN,
+    )
