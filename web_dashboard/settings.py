@@ -57,13 +57,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     "whitenoise.runserver_nostatic",
     'django.contrib.staticfiles',
+    'django.contrib.gis',
     'django_extensions',
     'django_bootstrap5',
     'phonenumber_field',
+    'axes',
     'web_dashboard',
     'web_dashboard.custom_auth',
     'web_dashboard.users',
-    'axes',
+    'web_dashboard.search_requests',
     ]
 
 MIDDLEWARE = [
@@ -128,7 +130,8 @@ DATABASES = {
 }
 
 SQLITE_SETTINGS = {
-    'ENGINE': 'django.db.backends.sqlite3',
+    # 'ENGINE': 'django.db.backends.sqlite3',
+    'ENGINE': 'django.contrib.gis.db.backends.spatialite',
     'NAME': BASE_DIR / 'db.sqlite3',
 }
 
