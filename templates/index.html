@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base_logged.html' %}
 
 {% load django_bootstrap5 i18n %}
 
@@ -6,6 +6,5 @@
 {% bootstrap_javascript %}
 
 	{% block content %}
-	{% include 'components/navbar.html' %}
 	<h1>Index page</h1>
 	{% endblock %}
