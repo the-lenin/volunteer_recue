@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% load django_bootstrap5 i18n %}
+
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+	{% block navbar %}
+		{% include 'components/navbar.html' %}
+	{% endblock %}
+
+	{% block content %}
+	<h1>Index page</h1>
+	{% endblock %}
