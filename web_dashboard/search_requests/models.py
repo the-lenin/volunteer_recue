@@ -159,6 +159,21 @@ class SearchRequest(models.Model):
         auto_now=True
     )
 
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return f'{self.full_name} {self.date_of_birth}, Lost@: {self.location}, Status: {self.get_status_display()}'
+
+    def get_fields(self) -> list[tuple]:
+        """Return list of tuples with field name and value of the instance."""
+        fields = []
+        for field in self._meta.fields:
+            field_name = field.verbose_name
+            field_value = getattr(self, field.attname)
+            if field.choices:
+                field_value = dict(field.choices).get(field_value)
+            fields.append((field_name, field_value))
+        return fields
+
 
 class Reporter(models.Model):
     """Class representing a person reporting missing person."""
