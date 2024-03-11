@@ -1,0 +1,15 @@
+{% extends 'base_logged.html' %}
+{% load django_bootstrap5 i18n %}
+
+{% block content %}
+	<div><a href="{% url 'search_requests:all' %}">{% trans 'Back' %}</a></div>
+	<div>
+		<form action="" method="POST">
+			{% csrf_token %}
+			<table class="table">
+				{{ form.as_table }}
+			</table>
+			<input type="submit" value="{% trans 'Save' %}">
+		</form>
+	</div>
+{% endblock %}

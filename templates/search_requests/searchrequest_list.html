@@ -1,0 +1,20 @@
+{% extends 'base_logged.html' %}
+
+{% load django_bootstrap5 i18n %}
+
+{% block content %}
+	<h1 class=''>{% trans 'Requests' %}: {{ search_requests|length }}</h1>
+	<div><a href="{% url 'search_requests:create' %}">{% trans 'Create' %}</a></div>
+	<div>
+		<table class="table table-dark table-striped">
+			{% for request in search_requests %}
+			<tr>
+				<td>{{ request.id }}</td>
+				<td><a href="{% url 'search_requests:read' request.id %}">{{ request }}</a></td>
+				<td><a href="{% url 'search_requests:update' request.id %}">{% trans 'Update' %}</a></td>
+				<td><a href="{% url 'search_requests:delete' request.id %}">{% trans 'Delete' %}</a></td>
+			</tr>
+			{% endfor %}
+		</table>
+	</div>
+{% endblock %}
