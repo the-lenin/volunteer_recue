@@ -6,28 +6,29 @@ from django.urls import reverse_lazy
 from .models import SearchRequest
 
 
-class SearchRequestView(View):
+class SerRequestBaseView(View):
     """Base view for a SearchRequest."""
     model = SearchRequest
     fields = '__all__'
-    success_url = reverse_lazy('search_request:all')
+    success_url = reverse_lazy('search_requests:all')
+    context_object_name = "search_requests"
 
 
-class SearchRequestListView(SearchRequestView, ListView):
+class SearchRequestListView(SerRequestBaseView, ListView):
     """List all SearchRequests view."""
 
 
-class SearchResquestCreateView(SearchRequestView, CreateView):
+class SearchResquestCreateView(SerRequestBaseView, CreateView):
     """SearchRequest create view."""
 
 
-class SearchRequestDetailView(SearchRequestView, DetailView):
+class SearchRequestDetailView(SerRequestBaseView, DetailView):
     """SearchRequest detail view."""
 
 
-class SearchRequestUpdateView(SearchRequestView, UpdateView):
+class SearchRequestUpdateView(SerRequestBaseView, UpdateView):
     """SearchRequest update view."""
 
 
-class SearchRequestDeleteView(SearchRequestView, DeleteView):
+class SearchRequestDeleteView(SerRequestBaseView, DeleteView):
     """SearchRequest delete view."""
