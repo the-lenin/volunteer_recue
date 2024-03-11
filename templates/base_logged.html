@@ -4,10 +4,11 @@
 
 {% bootstrap_css %}
 {% bootstrap_javascript %}
-	{% block navbar %}
-		{% include 'components/navbar.html' %}
-	{% endblock %}
 
-	{% block content %}
+{% block navbar %}
+	{% include 'components/navbar.html' %}
+{% endblock %}
+
+{% block content %}
 	<h1>Index page</h1>
-	{% endblock %}
+{% endblock %}
