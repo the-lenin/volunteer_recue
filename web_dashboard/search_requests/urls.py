@@ -17,11 +17,12 @@ Including another URLconf
 from django.urls import path
 from . import views
 
+app_name = 'search_requests'
 
 urlpatterns = [
     path('', views.SearchRequestListView.as_view(), name='all'),
-    path('', views.SearchResquestCreateView.as_view(), name='create'),
-    path('', views.SearchRequestDetailView.as_view(), name='read'),
-    path('', views.SearchRequestUpdateView.as_view(), name='update'),
-    path('', views.SearchRequestDeleteView.as_view(), name='delete'),
+    path('create/', views.SearchResquestCreateView.as_view(), name='create'),
+    path('<int:pk>/', views.SearchRequestDetailView.as_view(), name='read'),
+    path('<int:pk>/update/', views.SearchRequestUpdateView.as_view(), name='update'),
+    path('<int:pk>/delete/', views.SearchRequestDeleteView.as_view(), name='delete'),
 ]
