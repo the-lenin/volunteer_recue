@@ -52,6 +52,22 @@ class SearchRequest(models.Model):
         default=SexVerbose.UNSPECIFIED,
     )
 
+    # latitude = models.DecimalField(
+    #     _('Latitude'),
+    #     max_digits=9,
+    #     decimal_places=6,
+    #     blank=True,
+    #     null=True,
+    # )
+
+    # longitude = models.DecimalField(
+    #     _('Longitude'),
+    #     max_digits=9,
+    #     decimal_places=6,
+    #     blank=True,
+    #     null=True,
+    # )
+
     location = gis_models.PointField(
         _('Latitutude, Longitude'),
         blank=True,
