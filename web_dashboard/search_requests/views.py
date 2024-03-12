@@ -2,11 +2,13 @@ from django.views import View
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import reverse_lazy
 from .models import SearchRequest
+from django.utils.translation import gettext_lazy as _
 
 
-class SerRequestBaseView(View):
+class SerRequestBaseView(SuccessMessageMixin, View):
     """Base view for a SearchRequest."""
     model = SearchRequest
     fields = '__all__'
@@ -20,6 +22,7 @@ class SearchRequestListView(SerRequestBaseView, ListView):
 
 class SearchResquestCreateView(SerRequestBaseView, CreateView):
     """SearchRequest create view."""
+    success_message = _('Request succussfully created')
 
 
 class SearchRequestDetailView(SerRequestBaseView, DetailView):
@@ -28,7 +31,9 @@ class SearchRequestDetailView(SerRequestBaseView, DetailView):
 
 class SearchRequestUpdateView(SerRequestBaseView, UpdateView):
     """SearchRequest update view."""
+    success_message = _('Request succussfully updated')
 
 
 class SearchRequestDeleteView(SerRequestBaseView, DeleteView):
     """SearchRequest delete view."""
+    success_message = _('Request succussfully deleted')
