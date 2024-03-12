@@ -57,7 +57,13 @@ compilemessages:
 lint:
 	poetry run flake8 task_manager --exclude migrations
 
-
 .PHONY: test
 test:
 	$(MANAGE) test
+
+docker-build:
+	docker build -t web_dashboard_app --network host . 
+
+.PHONY: docker-prod
+docker-start:
+	docker run --env-file .env -p 10000:8000 -it web_dashboard_app
