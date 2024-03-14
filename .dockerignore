@@ -1,1 +1,10 @@
+# Vim
+*.swp
+*.swo
+*.swn
+
 .env
+.env.*
+.~lock.*
+
+__pycache__
