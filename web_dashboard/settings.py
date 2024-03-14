@@ -123,7 +123,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv(
             'DATABASE_URL',
-            'postgresql://postgres:postgres@localhost:5432/postgres'
+            'postgis://postgres:postgres@localhost:5432/postgres'
         ),
         conn_max_age=600
     )
