@@ -19,6 +19,9 @@ install:
 makemigrations:
 	$(MANAGE) makemigrations
 
+pg_extension:
+	psql "$(DATABASE_URL)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
 migrate:
 	$(MANAGE) migrate
 
