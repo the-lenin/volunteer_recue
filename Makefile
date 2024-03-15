@@ -11,7 +11,7 @@ MANAGE := poetry run python manage.py
 DOCKER := sudo docker
 
 
-setup:	install migrate create_superuser collectstatic
+setup:	install migrate collectstatic
 
 install:
 	poetry install
@@ -19,16 +19,17 @@ install:
 makemigrations:
 	$(MANAGE) makemigrations
 
-pg_extension:
+pg-extension:
 	psql "$(DATABASE_URL)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
+pg-shell:
+	psql "$(DATABASE_URL)"
 
 migrate:
 	$(MANAGE) migrate
 
 create_superuser:
-	if [ "$(CREATE_SUPERUSER)" = "True" ]; then \
-    	    poetry run ./manage.py createsuperuser --no-input; \
-    	fi
+	poetry run ./manage.py createsuperuser --no-input
 
 collectstatic:
 	$(MANAGE) collectstatic --no-input
