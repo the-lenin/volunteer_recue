@@ -4,7 +4,6 @@
 *.swn
 
 .env
-.env.*
 .~lock.*
 
 __pycache__
