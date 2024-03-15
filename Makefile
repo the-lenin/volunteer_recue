@@ -8,62 +8,83 @@ WEB_CONCURRENCY ?= 4
 
 STARTAPP_NAME := web_dashboard
 MANAGE := poetry run python manage.py
+DOCKER := sudo docker
 
 
-.PHONY: install
+setup:	install migrate create_superuser collectstatic
+
 install:
 	poetry install
 
-.PHONY: setup
-setup:	install migrate create_superuser
-	$(MANAGE) collectstatic --no-input
-	
-.PHONY: create_superuser
+makemigrations:
+	$(MANAGE) makemigrations
+
+migrate:
+	$(MANAGE) migrate
+
 create_superuser:
 	if [ "$(CREATE_SUPERUSER)" = "True" ]; then \
     	    poetry run ./manage.py createsuperuser --no-input; \
     	fi
 
-.PHONY: migrate
-migrate:
-	$(MANAGE) migrate
+collectstatic:
+	$(MANAGE) collectstatic --no-input
 
-.PHONY: makemigrations
-makemigrations:
-	$(MANAGE) makemigrations
-
-.PHONY: prod
-prod:
-	poetry run gunicorn -w $(WEB_CONCURRENCY) -b $(HOST):$(PORT) $(STARTAPP_NAME).wsgi:application
-
-.PHONY: dev
-dev:
-	$(MANAGE) runserver
-
-.PHONY: shell
-shell:
-	$(MANAGE) shell_plus
-
-.PHONY: makemessages 
 makemessages:
 	# Use compilemessages when updated translation
 	poetry run django-admin makemessages -l ru
 
-.PHONY: compilemessages
 compilemessages:
 	poetry run django-admin compilemessages
 
-.PHONY: lint
 lint:
 	poetry run flake8 task_manager --exclude migrations
 
-.PHONY: test
 test:
 	$(MANAGE) test
 
-docker-build:
-	docker build -t web_dashboard_app --network host . 
+shell:
+	$(MANAGE) shell_plus
 
-.PHONY: docker-prod
+dev:
+	$(MANAGE) runserver $(HOST):$(PORT)
+
+prod:
+	poetry run gunicorn -w $(WEB_CONCURRENCY) -b $(HOST):$(PORT) $(STARTAPP_NAME).wsgi:application
+
+docker-build:
+	$(DOCKER) build -t $(STARTAPP_NAME)_app --network host . 
+
+docker-network:
+	$(DOCKER) network create $(STARTAPP_NAME)_db_network
+
+docker-db:
+	$(DOCKER) run --name $(STARTAPP_NAME)_db \
+		-p 5432:5432 \
+		-e POSTGRES_USER=$(POSTGRES_USER) \
+		-e POSTGRES_PASSWORD=$(POSTGRES_PASSWORD) \
+		-e POSTGRES_DB=$(POSTGRES_DB) \
+		--network $(STARTAPP_NAME)_db_network \
+		-d postgis/postgis:16-3.4
+
+docker-db-shell:
+	$(DOCKER) exec -ti $(STARTAPP_NAME)_db bash 
+
 docker-start:
-	docker run --env-file .env -p 10000:8000 -it web_dashboard_app
+	$(DOCKER) run --name $(STARTAPP_NAME) \
+		-p $(PORT):8000 \
+		--env-file .env \
+		--network $(STARTAPP_NAME)_db_network \
+		-d $(STARTAPP_NAME)_app
+
+docker-migrate:
+	$(DOCKER) exec -it $(STARTAPP_NAME) poetry run python manage.py migrate
+
+docker-prune:
+	$(DOCKER) container rm $(STARTAPP_NAME) $(STARTAPP_NAME)_db -f
+
+docker-up: docker-prune docker-db sleep docker-start docker-migrate
+
+sleep:
+	sleep 3 
+
