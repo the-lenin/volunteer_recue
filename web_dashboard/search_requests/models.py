@@ -1,7 +1,8 @@
 from django.db import models
-from django.contrib.gis.db import models as gis_models
+from django.contrib.gis.geos import Point
 from django.utils.translation import gettext_lazy as _
 from phonenumber_field.modelfields import PhoneNumberField
+from location_field.models.spatial import LocationField
 
 PHOTOS_PATH = 'photos/'
 
@@ -52,26 +53,11 @@ class SearchRequest(models.Model):
         default=SexVerbose.UNSPECIFIED,
     )
 
-    latitude = models.DecimalField(
-        _('Latitude'),
-        max_digits=9,
-        decimal_places=6,
-        blank=True,
-        null=True,
-    )
-
-    longitude = models.DecimalField(
-        _('Longitude'),
-        max_digits=9,
-        decimal_places=6,
-        blank=True,
-        null=True,
-    )
-
-    location = gis_models.PointField(
-        _('Latitutude, Longitude'),
-        blank=True,
-        null=True,
+    location = LocationField(
+        verbose_name=_('Latitutude, Longitude'),
+        based_fields=['location_verbose'],
+        zoom=8,
+        default=Point(82.919782, 55.029738),
     )
 
     location_verbose = models.CharField(
@@ -177,7 +163,7 @@ class SearchRequest(models.Model):
 
     def __str__(self) -> str:
         """Representation of a single instance."""
-        return f'{self.full_name} {self.date_of_birth}, Lost@: {self.location}, Status: {self.get_status_display()}'
+        return f'{self.full_name} {self.date_of_birth}, Lost@: {self.location}, Status: {self.get_status_display()}'  # noqa: E501
 
     def get_fields(self) -> list[tuple]:
         """Return list of tuples with field name and value of the instance."""
