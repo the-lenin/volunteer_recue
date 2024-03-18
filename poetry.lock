@@ -400,6 +400,16 @@ files = [
 python-ipware = ">=2.0.0"
 
 [[package]]
+name = "django-location-field"
+version = "2.7.3"
+description = "Location field for Django"
+optional = false
+python-versions = "*"
+files = [
+    {file = "django_location_field-2.7.3-py2.py3-none-any.whl", hash = "sha256:b0660d3fd024541fbe53ef723e3b02ec4014fbc886ee3d8342e031f1ab28d11d"},
+]
+
+[[package]]
 name = "django-phonenumber-field"
 version = "7.3.0"
 description = "An international phone number field for django models."
@@ -1166,4 +1176,4 @@ h11 = ">=0.9.0,<1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "6ac5505b6dc86b0f3ef07b02ef6d6887159094f029726ed46ffb4c438d77c3b2"
+content-hash = "2c2ec21fde23b10c074f4f93d4a793458075869c7c3e6cd107b1acb7abfb85c2"
