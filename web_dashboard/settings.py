@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'django_bootstrap5',
     'phonenumber_field',
+    'location_field.apps.DefaultConfig',
     'axes',
     'web_dashboard',
     'web_dashboard.custom_auth',
@@ -208,3 +209,15 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Map and location
+# https://github.com/caioariede/django-location-field
+# https://django-leaflet.readthedocs.io/en/latest/
+LOCATION_FIELD = {
+    'search.provider': 'yandex',
+    'search.suffix': '',
+
+    # Yandex (Only Search Provider is available)
+    # https://yandex.com/dev/maps/jsapi/doc/2.1/quick-start/index.html#get-api-key
+    'provider.yandex.api_key': os.getenv('YMAP_TOKEN')
+}
