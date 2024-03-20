@@ -1,10 +1,20 @@
+import os
 from django.db import models
 from django.contrib.gis.geos import Point
 from django.utils.translation import gettext_lazy as _
+from uuid import uuid4
 from phonenumber_field.modelfields import PhoneNumberField
 from location_field.models.spatial import LocationField
 
-PHOTOS_PATH = 'photos/'
+
+def path_and_rename(instance, filename):
+    upload_to = 'photos'
+    ext = filename.split('.')[-1]
+    if instance.pk:
+        filename = f'{instance.pk}.{ext}'
+    else:
+        filename = f'{uuid4()}.{ext}'
+    return os.path.join(upload_to, filename)
 
 
 class SearchRequest(models.Model):
@@ -110,7 +120,7 @@ class SearchRequest(models.Model):
 
     photos = models.ImageField(
         _('Photos'),
-        upload_to=PHOTOS_PATH,
+        upload_to=path_and_rename,
         blank=True,
         null=True,
     )
