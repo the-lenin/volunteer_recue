@@ -28,10 +28,10 @@ class SearchRequest(models.Model):
 
     class AgeVerbose(models.TextChoices):
         """Choices for age categories."""
-        CHILD = 'CHLD', _('child')
-        TEENAGER = 'TNGR', _('teenager')
-        ADULT = 'ADLT', _('adult')
-        OLDERLY = 'OLDR', _('olderly')
+        CHILD = 'CHLD', _('Child')
+        TEENAGER = 'TNGR', _('Teenager')
+        ADULT = 'ADLT', _('Adult')
+        OLDERLY = 'OLDR', _('Olderly')
 
     age = models.CharField(
         _('Age'),
@@ -54,17 +54,16 @@ class SearchRequest(models.Model):
     )
 
     location = LocationField(
-        verbose_name=_('Latitutude, Longitude'),
-        based_fields=['location_verbose'],
+        verbose_name=_('Location'),
+        based_fields=['city'],
         zoom=8,
-        default=Point(82.919782, 55.029738),
+        default=Point(82.919782, 55.029738),  # Novosibirsk
     )
 
-    location_verbose = models.CharField(
-        _('Nearest Location'),
+    city = models.CharField(
+        _('City'),
         max_length=255,
-        blank=True,
-        null=True,
+        help_text=_('Type a city name to find coordinates on map'),
     )
 
     disappearance_date = models.DateField(
@@ -219,6 +218,17 @@ class Reporter(models.Model):
         auto_now=True
     )
 
+    @property
+    def full_name(self):
+        """Return full name."""
+        names = [self.last_name, self.first_name, self.patronymic_name]
+        parts = [part for part in names if part]
+        return ' '.join(parts)
+
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return self.full_name
+
 
 class ReporterSearchRequest(models.Model):
     """
@@ -227,14 +237,14 @@ class ReporterSearchRequest(models.Model):
     reporter = models.ForeignKey(
         Reporter,
         on_delete=models.CASCADE,
-        related_name='reporter',
+        related_name='search_requests',
         verbose_name=_('Reporter'),
     )
 
     search_request = models.ForeignKey(
         SearchRequest,
         on_delete=models.CASCADE,
-        related_name='search_request',
+        related_name='reporters',
         verbose_name=_('Search Request'),
     )
 
@@ -261,6 +271,10 @@ class ReporterSearchRequest(models.Model):
         _('Updated at'),
         auto_now=True
     )
+
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return f'{self.reporter} // {self.search_request}'
 
     class Meta:
         unique_together = ('reporter', 'search_request')
