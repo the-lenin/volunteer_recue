@@ -5,12 +5,19 @@
 <div><a href="{% url 'search_requests:all' %}">{% trans 'Back' %}</a></div>
 <h1 class=''>{% trans 'Request' %}</h1>
 <h2 class="">ID: {{ object.id }} | {{ object.full_name }} | {{ object.get_status_display }}</h2>
+{% if object.photos %}
+	<img src="{{ object.photos.url }}" alt="Missing person photo" style="max-height:300px">
+{% endif %}
 				<div>
 					<a class="btn" href="{% url 'search_requests:update' object.id %}">{% trans 'Update' %}</a>
 					<a class="btn" href="{% url 'search_requests:delete' object.id %}">{% trans 'Delete' %}</a>
 				</div>
 	<div>
 		<table class="table table-dark table-striped">
+			<tr>
+				<th>{% trans 'Description' %}</th>
+				<th>{% trans 'Value' %}</th>
+			</tr>
 			{% for label, value in object.get_fields %}
 				<tr>
 					<td>{{ label }}</td>
@@ -19,4 +26,30 @@
 			{% endfor %}	
 		</table>
 	</div>
+
+	{% with reporters=object.reporters.all %}
+		{% if reporters %}
+			<div>
+				<h2>{% trans 'Reported by' %}</h2>
+				<table class="table table-dark table-striped">
+					<tr>
+						<th>ID</th>
+						<th>{% trans 'Full name' %}</th>
+						<th>{% trans 'Relationship' %}</th>
+						<th>{% trans 'Phone number' %}</th>
+						<th>{% trans 'Created at' %}</th>
+					</tr>
+					{% for reporter in reporters %} 
+					<tr>
+						<td>{{ reporter.reporter.id }}</td>
+						<td>{{ reporter.reporter.full_name }}</td>
+						<td>{{ reporter.relationship }}</td>
+						<td>{{ reporter.reporter.phone_number }}</td>
+						<td>{{ reporter.created_at }}</td>
+					</tr>
+						{% endfor %}
+				</table>
+			</div>
+		{% endif %}
+	{% endwith %}
 {% endblock %}
