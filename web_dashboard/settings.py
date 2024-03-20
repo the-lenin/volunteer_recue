@@ -221,3 +221,9 @@ LOCATION_FIELD = {
     # https://yandex.com/dev/maps/jsapi/doc/2.1/quick-start/index.html#get-api-key
     'provider.yandex.api_key': os.getenv('YMAP_TOKEN')
 }
+
+
+# Media
+# https://docs.djangoproject.com/en/5.0/ref/settings/#media-root
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
