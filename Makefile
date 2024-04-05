@@ -23,7 +23,7 @@ pg-extension:
 	psql "$(DATABASE_URL)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 pg-shell:
-	psql "$(DATABASE_URL)"
+	$(MANAGE) dbshell
 
 migrate:
 	$(MANAGE) migrate
