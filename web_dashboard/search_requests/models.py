@@ -1,6 +1,7 @@
 import os
 from django.db import models
 from django.contrib.gis.geos import Point
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from uuid import uuid4
 from phonenumber_field.modelfields import PhoneNumberField
@@ -147,6 +148,33 @@ class SearchRequest(models.Model):
         null=True,
     )
 
+    reporter_full_name = models.CharField(
+        _('Reporter full name'),
+        max_length=128,
+        help_text=_("Required 128 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
+    reporter_contact_details = models.TextField(
+        _('Reporter contact details'),
+        blank=False,
+        null=False,
+    )
+
+    reporter_relationship = models.CharField(
+        _('Reporter relationship to missing person'),
+        max_length=128,
+        help_text=_("Required 128 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
+    reporter_has_reported_to_police = models.BooleanField(
+        _('Has reporter reported to police'),
+        default=False,
+    )
+
     class StatusVerbose(models.TextChoices):
         """Search request status choices."""
         OPEN = 'O', _('Open')
@@ -185,9 +213,13 @@ class SearchRequest(models.Model):
             fields.append((field_name, field_value))
         return fields
 
+    def get_absolute_url(self) -> str:
+        """Return absolute url to the object."""
+        return reverse('search_request:read', kwargs={'pk': self.pk})
 
-class Reporter(models.Model):
-    """Class representing a person reporting missing person."""
+
+class Survey(models.Model):
+    """Class representing a person surveyedi regarding missing person."""
     first_name = models.CharField(
         _('First name'),
         max_length=64,
@@ -218,46 +250,6 @@ class Reporter(models.Model):
         null=False,
     )
 
-    created_at = models.DateTimeField(
-        _('Created at'),
-        auto_now_add=True
-    )
-
-    updated_at = models.DateTimeField(
-        _('Updated at'),
-        auto_now=True
-    )
-
-    @property
-    def full_name(self):
-        """Return full name."""
-        names = [self.last_name, self.first_name, self.patronymic_name]
-        parts = [part for part in names if part]
-        return ' '.join(parts)
-
-    def __str__(self) -> str:
-        """Representation of a single instance."""
-        return self.full_name
-
-
-class ReporterSearchRequest(models.Model):
-    """
-    Intermediary many-to-many model connecting Reporter to SearchRequest.
-    """
-    reporter = models.ForeignKey(
-        Reporter,
-        on_delete=models.CASCADE,
-        related_name='search_requests',
-        verbose_name=_('Reporter'),
-    )
-
-    search_request = models.ForeignKey(
-        SearchRequest,
-        on_delete=models.CASCADE,
-        related_name='reporters',
-        verbose_name=_('Search Request'),
-    )
-
     relationship = models.CharField(
         _('Relationship'),
         max_length=32,
@@ -282,9 +274,40 @@ class ReporterSearchRequest(models.Model):
         auto_now=True
     )
 
+    @property
+    def full_name(self):
+        """Return full name."""
+        names = [self.last_name, self.first_name, self.patronymic_name]
+        parts = [part for part in names if part]
+        return ' '.join(parts)
+
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return self.full_name
+
+    def get_absolute_url(self) -> str:
+        """Return absolute url to the object."""
+        return reverse('survey:read', kwargs={'pk': self.pk})
+
+
+class SurveySearchRequest(models.Model):
+    """
+    Intermediary many-to-many model connecting Survey to SearchRequest.
+    """
+    survey = models.ForeignKey(
+        Survey,
+        on_delete=models.CASCADE,
+        related_name='search_requests',
+        verbose_name=_('Survey'),
+    )
+
+    search_request = models.ForeignKey(
+        SearchRequest,
+        on_delete=models.CASCADE,
+        related_name='surveys',
+        verbose_name=_('Search Request'),
+    )
+
     def __str__(self) -> str:
         """Representation of a single instance."""
         return f'{self.reporter} // {self.search_request}'
-
-    class Meta:
-        unique_together = ('reporter', 'search_request')

@@ -9,10 +9,5 @@ class SearchRequestAdmin(admin_gis.GISModelAdmin):
 
 
 admin.site.register(models.SearchRequest, admin_gis.GISModelAdmin)
-# SearchRequestAdmin)
-
-admin.site.register(models.Reporter,
-                    )
-
-admin.site.register(models.ReporterSearchRequest,
-                    )
+admin.site.register(models.Survey,)
+admin.site.register(models.SurveySearchRequest,)
