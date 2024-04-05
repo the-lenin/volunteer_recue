@@ -20,9 +20,35 @@ from . import views
 app_name = 'search_requests'
 
 urlpatterns = [
+    # Search Requests
     path('', views.SearchRequestListView.as_view(), name='all'),
     path('create/', views.SearchResquestCreateView.as_view(), name='create'),
     path('<int:pk>/', views.SearchRequestDetailView.as_view(), name='read'),
-    path('<int:pk>/update/', views.SearchRequestUpdateView.as_view(), name='update'),
-    path('<int:pk>/delete/', views.SearchRequestDeleteView.as_view(), name='delete'),
+    path(
+        '<int:pk>/update/',
+        views.SearchRequestUpdateView.as_view(),
+        name='update'
+    ),
+    path(
+        '<int:pk>/delete/',
+        views.SearchRequestDeleteView.as_view(),
+        name='delete'
+    ),
+
+    # Surveys
+    path(
+        '<int:pk>/sv/create/',
+        views.SurveyCreateView.as_view(),
+        name='sv_create'
+    ),
+    path(
+        '<int:pk>/sv/<int:sv_pk>/update/',
+        views.SurveyUpdateView.as_view(),
+        name='sv_update'
+    ),
+    path(
+        '<int:pk>/sv/<int:sv_pk>/delete/',
+        views.SurveyDeleteView.as_view(),
+        name='sv_delete'
+    ),
 ]
