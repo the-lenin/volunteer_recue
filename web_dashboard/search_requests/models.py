@@ -220,6 +220,11 @@ class SearchRequest(models.Model):
 
 class Survey(models.Model):
     """Class representing a person surveyed regarding missing person."""
+    search_request = models.ForeignKey(
+        SearchRequest,
+        on_delete=models.CASCADE
+    )
+
     first_name = models.CharField(
         _('First name'),
         max_length=64,
@@ -288,26 +293,3 @@ class Survey(models.Model):
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
         return reverse('search_requests:sv_read', kwargs={'pk': self.pk})
-
-
-class SurveySearchRequest(models.Model):
-    """
-    Intermediary many-to-many model connecting Survey to SearchRequest.
-    """
-    survey = models.ForeignKey(
-        Survey,
-        on_delete=models.CASCADE,
-        related_name='search_requests',
-        verbose_name=_('Survey'),
-    )
-
-    search_request = models.ForeignKey(
-        SearchRequest,
-        on_delete=models.CASCADE,
-        related_name='surveys',
-        verbose_name=_('Search Request'),
-    )
-
-    def __str__(self) -> str:
-        """Representation of a single instance."""
-        return f'{self.survey} // {self.search_request}'
