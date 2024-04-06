@@ -54,10 +54,9 @@ class SearchRequestDeleteView(SerRequestBaseView, DeleteView):
 
 
 # Survey
-class SurveyBaseView(View):
+class SurveyBaseView(SuccessMessageMixin, View):
     """Base view for a Survey."""
     model = models.Survey
-    form_class = forms.SurveyForm
     context_object_name = "survey"
 
     def get_success_url(self):
@@ -67,6 +66,7 @@ class SurveyBaseView(View):
 
 class SurveyCreateView(SurveyBaseView, CreateView):
     """Survey create view."""
+    form_class = forms.SurveyForm
     success_message = _('Survey succussfully created')
 
     # @overide
@@ -83,10 +83,12 @@ class SurveyCreateView(SurveyBaseView, CreateView):
 
 class SurveyDetailView(SurveyBaseView, DetailView):
     """Survey detail view."""
+    fields = '__all__'
 
 
 class SurveyUpdateView(SurveyBaseView, UpdateView):
     """Survey update view."""
+    form_class = forms.SurveyForm
     success_message = _('Survey succussfully updated')
 
 
