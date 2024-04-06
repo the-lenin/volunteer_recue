@@ -215,11 +215,11 @@ class SearchRequest(models.Model):
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
-        return reverse('search_request:read', kwargs={'pk': self.pk})
+        return reverse('search_requests:read', kwargs={'pk': self.pk})
 
 
 class Survey(models.Model):
-    """Class representing a person surveyedi regarding missing person."""
+    """Class representing a person surveyed regarding missing person."""
     first_name = models.CharField(
         _('First name'),
         max_length=64,
@@ -287,7 +287,7 @@ class Survey(models.Model):
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
-        return reverse('survey:read', kwargs={'pk': self.pk})
+        return reverse('search_requests:sv_read', kwargs={'pk': self.pk})
 
 
 class SurveySearchRequest(models.Model):
@@ -310,4 +310,4 @@ class SurveySearchRequest(models.Model):
 
     def __str__(self) -> str:
         """Representation of a single instance."""
-        return f'{self.reporter} // {self.search_request}'
+        return f'{self.survey} // {self.search_request}'
