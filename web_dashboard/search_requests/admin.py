@@ -10,4 +10,3 @@ class SearchRequestAdmin(admin_gis.GISModelAdmin):
 
 admin.site.register(models.SearchRequest, admin_gis.GISModelAdmin)
 admin.site.register(models.Survey,)
-admin.site.register(models.SurveySearchRequest,)
