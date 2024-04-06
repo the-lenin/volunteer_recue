@@ -1,15 +1,12 @@
+from django import forms
 from django.forms import ModelForm
 from .import models
 
 
-class SearchRequestForm(ModelForm):
+class SurveyForm(ModelForm):
     class Meta:
-        model = models.Task
+        model = models.Survey
         fields = '__all__'
-#         [
-#             'name',
-#             'description',
-#             'status',
-#             'executor',
-#             'labels',
-#         ]
+        widgets = {
+            'search_request': forms.HiddenInput(),
+        }
