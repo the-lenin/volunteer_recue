@@ -42,6 +42,11 @@ urlpatterns = [
         name='sv_create'
     ),
     path(
+        'sv/<int:pk>',
+        views.SurveyUpdateView.as_view(),
+        name='sv_read'
+    ),
+    path(
         '<int:pk>/sv/<int:sv_pk>/update/',
         views.SurveyUpdateView.as_view(),
         name='sv_update'
