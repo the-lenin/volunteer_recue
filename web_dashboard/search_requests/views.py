@@ -1,12 +1,12 @@
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.views import View
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import reverse_lazy, reverse
-from . import models
 from django.utils.translation import gettext_lazy as _
+from . import models, forms
 
 
 # Search Request
@@ -57,12 +57,12 @@ class SearchRequestDeleteView(SerRequestBaseView, DeleteView):
 class SurveyBaseView(View):
     """Base view for a Survey."""
     model = models.Survey
-    fields = '__all__'
+    form_class = forms.SurveyForm
     context_object_name = "survey"
 
     def get_success_url(self):
-        """Return to detailed view of search_request."""
-        return reverse('search_requests:read', self.search_requests.id)
+        return reverse('search_requests:read',
+                       kwargs={'pk': self.object.search_request_id})
 
 
 class SurveyCreateView(SurveyBaseView, CreateView):
@@ -70,25 +70,15 @@ class SurveyCreateView(SurveyBaseView, CreateView):
     success_message = _('Survey succussfully created')
 
     # @overide
-    def post(self, request, *args, **kwargs):
-        """Get SearchRequest primary key and assign it to Survey."""
-        form = self.get_form()
-        if form.is_valid():
-            survey = form.save()
-            search_request = models.SearchRequest.objects.get(
-                pk=self.kwargs.get('pk')
-            )
-
-            if search_request:
-                print(search_request.id, survey.id)
-                models.SurveySearchRequest.objects.create(survey=survey,
-                                                          search_request=search_request)
-                return redirect(search_request.get_absolute_url())
-
-            # TODO: Where to return if no search_request present???
-            return redirect('search_requests:all')
-
-        return self.form_invalid(form)
+    def get(self, request, *args, **kwargs):
+        """
+        Get primary key from request and fill the search_request field with it.
+        """
+        search_request_pk = self.kwargs.get('pk')
+        search_request = get_object_or_404(models.SearchRequest,
+                                           pk=search_request_pk)
+        self.initial['search_request'] = search_request
+        return super().get(request, *args, **kwargs)
 
 
 class SurveyDetailView(SurveyBaseView, DetailView):
