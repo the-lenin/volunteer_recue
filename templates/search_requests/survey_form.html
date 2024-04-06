@@ -1,0 +1,15 @@
+{% extends 'base_logged.html' %}
+{% load django_bootstrap5 i18n crispy_forms_tags %}
+
+{% block content %}
+<div><a href="{{ survey }}">{% trans 'Back' %}</a></div>
+	<div>
+		<form action="" method="POST" enctype="multipart/form-data">
+			{% csrf_token %}
+			<table class="table">
+				{{ form|crispy }}
+			</table>
+			<input type="submit" value="{% trans 'Save' %}">
+		</form>
+	</div>
+{% endblock %}
