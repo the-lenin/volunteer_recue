@@ -1,5 +1,5 @@
 {% extends 'base_logged.html' %}
-{% load django_bootstrap5 i18n %}
+{% load django_bootstrap5 i18n crispy_forms_tags %}
 
 {% block script_head %}
 		<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
@@ -12,7 +12,7 @@
 		<form action="" method="POST" enctype="multipart/form-data">
 			{% csrf_token %}
 			<table class="table">
-				{{ form.as_table }}
+				{{ form|crispy }}
 			</table>
 			<input type="submit" value="{% trans 'Save' %}">
 		</form>
