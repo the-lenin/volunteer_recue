@@ -2,7 +2,7 @@
 {% load django_bootstrap5 i18n crispy_forms_tags %}
 
 {% block content %}
-<div><a href="{{ survey }}">{% trans 'Back' %}</a></div>
+<div><a href="{{ survey.search_request.get_absolute_url }}">{% trans 'Back' %}</a></div>
 	<div>
 		<form action="" method="POST" enctype="multipart/form-data">
 			{% csrf_token %}

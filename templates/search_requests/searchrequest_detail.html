@@ -30,7 +30,7 @@
 			<div>
 				<h2>{% trans 'Surveys' %}:</h2>
 				<a class="btn btn-primary" href="{% url 'search_requests:sv_create' object.id %}">{% trans 'Add Survey' %}</a>
-				{% with surveys=object.surveys.all %}
+				{% with surveys=object.survey_set.all %}
 					{% if surveys %}
 						<table class="table table-dark table-striped">
 							<tr>
@@ -42,15 +42,15 @@
 								<th></th>
 								<th></th>
 							</tr>
-							{% for s in surveys %} 
+							{% for survey in surveys %} 
 							<tr>
-								<td><a href="{{ s.survey.get_absolute_url }}">{{ s.survey.id }}</a></td>
-								<td>{{ s.survey.full_name }}</td>
-								<td>{{ s.survey.relationship }}</td>
-								<td>{{ s.survey.phone_number }}</td>
-								<td>{{ s.survey.created_at }}</td>
-								<td><a href="{% url 'search_requests:sv_update' pk=s.search_request.id sv_pk=s.survey.id %}">{% trans 'Update' %}</a></td>
-								<td><a href="{% url 'search_requests:sv_delete' pk=s.search_request.id sv_pk=s.survey.id %}">{% trans 'Delete' %}</a></td>
+								<td><a href="{{ survey.get_absolute_url }}">{{ survey.id }}</a></td>
+								<td>{{ survey.full_name }}</td>
+								<td>{{ survey.relationship }}</td>
+								<td>{{ survey.phone_number }}</td>
+								<td>{{ survey.created_at }}</td>
+								<td><a href="{% url 'search_requests:sv_update' pk=object.id sv_pk=survey.id %}">{% trans 'Update' %}</a></td>
+								<td><a href="{% url 'search_requests:sv_delete' pk=object.id sv_pk=survey.id %}">{% trans 'Delete' %}</a></td>
 							</tr>
 								{% endfor %}
 						</table>
