@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     'web_dashboard.custom_auth',
     'web_dashboard.users',
     'web_dashboard.search_requests',
+    "crispy_forms",
+    "crispy_bootstrap5",
     ]
 
 MIDDLEWARE = [
@@ -227,3 +229,10 @@ LOCATION_FIELD = {
 # https://docs.djangoproject.com/en/5.0/ref/settings/#media-root
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+# Crispy forms
+# https://django-crispy-forms.readthedocs.io
+# https://github.com/django-crispy-forms/crispy-bootstrap5
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
