@@ -9,8 +9,8 @@
 	<img src="{{ object.photos.url }}" alt="Missing person photo" style="max-height:300px">
 {% endif %}
 				<div>
-					<a class="btn" href="{% url 'search_requests:update' object.id %}">{% trans 'Update' %}</a>
-					<a class="btn" href="{% url 'search_requests:delete' object.id %}">{% trans 'Delete' %}</a>
+					<a class="btn btn-primary" href="{% url 'search_requests:update' object.id %}">{% trans 'Update' %}</a>
+					<a class="btn btn-danger" href="{% url 'search_requests:delete' object.id %}">{% trans 'Delete' %}</a>
 				</div>
 	<div>
 		<table class="table table-dark table-striped">
@@ -27,29 +27,34 @@
 		</table>
 	</div>
 
-	{% with reporters=object.reporters.all %}
-		{% if reporters %}
 			<div>
-				<h2>{% trans 'Reported by' %}</h2>
-				<table class="table table-dark table-striped">
-					<tr>
-						<th>ID</th>
-						<th>{% trans 'Full name' %}</th>
-						<th>{% trans 'Relationship' %}</th>
-						<th>{% trans 'Phone number' %}</th>
-						<th>{% trans 'Created at' %}</th>
-					</tr>
-					{% for reporter in reporters %} 
-					<tr>
-						<td>{{ reporter.reporter.id }}</td>
-						<td>{{ reporter.reporter.full_name }}</td>
-						<td>{{ reporter.relationship }}</td>
-						<td>{{ reporter.reporter.phone_number }}</td>
-						<td>{{ reporter.created_at }}</td>
-					</tr>
-						{% endfor %}
-				</table>
+				<h2>{% trans 'Surveys' %}:</h2>
+				<a class="btn btn-primary" href="{% url 'search_requests:sv_create' object.id %}">{% trans 'Add Survey' %}</a>
+				{% with surveys=object.surveys.all %}
+					{% if surveys %}
+						<table class="table table-dark table-striped">
+							<tr>
+								<th>ID</th>
+								<th>{% trans 'Full name' %}</th>
+								<th>{% trans 'Relationship' %}</th>
+								<th>{% trans 'Phone number' %}</th>
+								<th>{% trans 'Created at' %}</th>
+								<th></th>
+								<th></th>
+							</tr>
+							{% for s in surveys %} 
+							<tr>
+								<td><a href="{{ s.survey.get_absolute_url }}">{{ s.survey.id }}</a></td>
+								<td>{{ s.survey.full_name }}</td>
+								<td>{{ s.survey.relationship }}</td>
+								<td>{{ s.survey.phone_number }}</td>
+								<td>{{ s.survey.created_at }}</td>
+								<td><a href="{% url 'search_requests:sv_update' pk=s.search_request.id sv_pk=s.survey.id %}">{% trans 'Update' %}</a></td>
+								<td><a href="{% url 'search_requests:sv_delete' pk=s.search_request.id sv_pk=s.survey.id %}">{% trans 'Delete' %}</a></td>
+							</tr>
+								{% endfor %}
+						</table>
+					{% endif %}
+				{% endwith %}
 			</div>
-		{% endif %}
-	{% endwith %}
 {% endblock %}
