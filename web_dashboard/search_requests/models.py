@@ -292,4 +292,5 @@ class Survey(models.Model):
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
-        return reverse('search_requests:sv_read', kwargs={'pk': self.pk})
+        return reverse('search_requests:sv_read',
+                       kwargs={'pk': self.search_request.id, 'sv_pk': self.pk})
