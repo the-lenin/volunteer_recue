@@ -3,13 +3,16 @@
 {% load django_bootstrap5 i18n %}
 
 {% block content %}
-	<h1 class=''>{% trans 'Requests' %}: {{ search_requests|length }}</h1>
-	<div><a href="{% url 'search_requests:create' %}">{% trans 'Create' %}</a></div>
-	<div>
+	<div class="m-3">
 		<form class="form m-0" action="" method="get">
 			{{ filter.form.as_table }}
+			<div class="text-secondary"><i>{% blocktrans %}Full name, phone number, city{% endblocktrans %}</i></div>
 			<input type="submit" name="filter" value="{% translate 'Show' %}">
 		</form>
+	</div>
+	<h1 class=''>{% trans 'Requests' %}: {{ filter.qs|length }}</h1>
+	<div><a class="btn btn-primary" href="{% url 'search_requests:create' %}">{% trans 'Create' %}</a></div>
+	<div>
 		<table class="table table-dark table-striped">
 			{% for request in filter.qs %}
 			<tr>
