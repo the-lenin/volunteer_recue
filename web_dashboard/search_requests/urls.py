@@ -42,17 +42,17 @@ urlpatterns = [
         name='sv_create'
     ),
     path(
-        'sv/<int:pk>',
-        views.SurveyUpdateView.as_view(),
+        'sv/<int:pk>/',
+        views.SurveyDetailView.as_view(),
         name='sv_read'
     ),
     path(
-        '<int:pk>/sv/<int:sv_pk>/update/',
+        'sv/<int:pk>/update/',
         views.SurveyUpdateView.as_view(),
         name='sv_update'
     ),
     path(
-        '<int:pk>/sv/<int:sv_pk>/delete/',
+        'sv/<int:pk>/delete/',
         views.SurveyDeleteView.as_view(),
         name='sv_delete'
     ),
