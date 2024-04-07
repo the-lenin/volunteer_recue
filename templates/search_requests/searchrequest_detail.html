@@ -49,8 +49,8 @@
 								<td>{{ survey.relationship }}</td>
 								<td>{{ survey.phone_number }}</td>
 								<td>{{ survey.created_at }}</td>
-								<td><a href="{% url 'search_requests:sv_update' pk=object.id sv_pk=survey.id %}">{% trans 'Update' %}</a></td>
-								<td><a href="{% url 'search_requests:sv_delete' pk=object.id sv_pk=survey.id %}">{% trans 'Delete' %}</a></td>
+								<td><a href="{% url 'search_requests:sv_update' pk=survey.pk %}">{% trans 'Update' %}</a></td>
+								<td><a href="{% url 'search_requests:sv_delete' pk=survey.pk %}">{% trans 'Delete' %}</a></td>
 							</tr>
 								{% endfor %}
 						</table>
