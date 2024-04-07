@@ -18,7 +18,24 @@ def path_and_rename(instance, filename):
     return os.path.join(upload_to, filename)
 
 
-class SearchRequest(models.Model):
+class GetFieldsMixin:
+    def get_fields(self) -> list[tuple]:
+        """Return list of tuples with field name and value of the instance."""
+        fields = []
+        for field in self._meta.fields:
+            field_name = field.verbose_name
+            field_value = getattr(self, field.attname)
+            if field.choices:
+                field_value = dict(field.choices).get(field_value)
+            elif isinstance(field, models.ForeignKey):
+                related_obj = getattr(self, field.name)
+                if related_obj:
+                    field_value = related_obj.__str__()
+            fields.append((field_name, field_value))
+        return fields
+
+
+class SearchRequest(GetFieldsMixin, models.Model):
     """
     Model representing search request of missing individual.
     """
@@ -202,26 +219,16 @@ class SearchRequest(models.Model):
         """Representation of a single instance."""
         return f'{self.full_name} {self.date_of_birth}, Lost@: {self.location}, Status: {self.get_status_display()}'  # noqa: E501
 
-    def get_fields(self) -> list[tuple]:
-        """Return list of tuples with field name and value of the instance."""
-        fields = []
-        for field in self._meta.fields:
-            field_name = field.verbose_name
-            field_value = getattr(self, field.attname)
-            if field.choices:
-                field_value = dict(field.choices).get(field_value)
-            fields.append((field_name, field_value))
-        return fields
-
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
         return reverse('search_requests:read', kwargs={'pk': self.pk})
 
 
-class Survey(models.Model):
+class Survey(GetFieldsMixin, models.Model):
     """Class representing a person surveyed regarding missing person."""
     search_request = models.ForeignKey(
         SearchRequest,
+        verbose_name=_('Search Request'),
         on_delete=models.CASCADE
     )
 
