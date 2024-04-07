@@ -20,7 +20,7 @@ makemigrations:
 	$(MANAGE) makemigrations
 
 pg-extension:
-	psql "$(DATABASE_URL)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+	psql "$(DATABASE_URL_EXT)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 pg-shell:
 	$(MANAGE) dbshell
