@@ -2,7 +2,7 @@
 {% load django_bootstrap5 i18n %}
 
 {% block content %}
-<div><a href="{% url 'search_requests:all' %}">{% trans 'Back' %}</a></div>
+<div><a href="{{ object.search_request.get_absolute_url }}">{% trans 'Back' %}</a></div>
 <h2 class="text-center display-2">{% trans 'Survey' %}: {{ object.pk }}</h2>
 <h3 class="">{% trans 'Requset' %} ID: {{ object.search_request.id }} | {{ object.search_request.full_name }} | {{ object.search_request.get_status_display }}</h2>
 	<div>
