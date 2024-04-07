@@ -6,8 +6,12 @@
 	<h1 class=''>{% trans 'Requests' %}: {{ search_requests|length }}</h1>
 	<div><a href="{% url 'search_requests:create' %}">{% trans 'Create' %}</a></div>
 	<div>
+		<form class="form m-0" action="" method="get">
+			{{ filter.form.as_table }}
+			<input type="submit" name="filter" value="{% translate 'Show' %}">
+		</form>
 		<table class="table table-dark table-striped">
-			{% for request in search_requests %}
+			{% for request in filter.qs %}
 			<tr>
 				<td>{{ request.id }}</td>
 				<td><a href="{% url 'search_requests:read' request.id %}">{{ request }}</a></td>

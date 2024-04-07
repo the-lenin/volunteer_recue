@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
@@ -6,7 +6,7 @@ from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import reverse_lazy, reverse
 from django.utils.translation import gettext_lazy as _
-from . import models, forms
+from . import models, forms, filters
 
 
 # Search Request
@@ -18,8 +18,19 @@ class SerRequestBaseView(SuccessMessageMixin, View):
     context_object_name = "search_requests"
 
 
-class SearchRequestListView(SerRequestBaseView, ListView):
+class SearchRequestListView(SerRequestBaseView):
     """List all SearchRequests view."""
+    template = 'search_requests/searchrequest_list.html'
+
+    def get(self, request, *args, **kwargs):
+        """Return tasks index."""
+        search_requests = models.SearchRequest.objects.all()
+        search_requests_filtered = filters.SearchRequestFilter(
+            request.GET, queryset=search_requests, request=request
+        )
+        return render(
+            request, self.template, {'filter': search_requests_filtered}
+        )
 
 
 class SearchResquestCreateView(SerRequestBaseView, CreateView):
