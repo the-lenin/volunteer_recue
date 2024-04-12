@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'web_dashboard.custom_auth',
     'web_dashboard.users',
     'web_dashboard.search_requests',
+    "web_dashboard.logistics",
     "crispy_forms",
     "crispy_bootstrap5",
     ]
