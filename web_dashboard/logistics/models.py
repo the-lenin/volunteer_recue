@@ -1,9 +1,13 @@
 from django.db import models
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.contrib.gis.geos import Point
 from phonenumber_field.modelfields import PhoneNumberField
 from location_field.models.spatial import LocationField
-from web_dashboard.custom_auth.models import CustomUser
+
+from web_dashboard.users.models import CustomUser
+from web_dashboard.search_requests import models as models_sr
+
 
 class Crew(models.Model):
     """Class represent crew."""
@@ -21,8 +25,14 @@ class Crew(models.Model):
         default=StatusVerbose.AVAILABLE,
     )
 
-    departured_at = models.DateTimeField(
-        _('Departured at'),
+    departure_datetime = models.DateTimeField(
+        _('Departure at'),
+        blank=True,
+        null=True,
+    )
+
+    return_datetime = models.DateTimeField(
+        _('Return at'),
         blank=True,
         null=True,
     )
@@ -44,7 +54,7 @@ class Crew(models.Model):
     driver = models.ForeignKey(
         CustomUser,
         verbose_name=_('Driver'),
-        on_delete=models.SET_NULL
+        on_delete=models.CASCADE
     )
 
     created_at = models.DateTimeField(
@@ -68,6 +78,12 @@ class Crew(models.Model):
 
 class Task(models.Model):
     """Define a task for a SearchRequest."""
+    search_request = models.ForeignKey(
+        models_sr.SearchRequest,
+        verbose_name=_('Search Request'),
+        on_delete=models.CASCADE
+    )
+
     title = models.CharField(
         _('Title'),
         max_length=32,
@@ -84,8 +100,12 @@ class Task(models.Model):
         null=False,
     )
 
+    # TODO: Coordinates from address or vice-versa
     coordinates = LocationField(
-        _('Coordinates')
+        verbose_name=_('Coordinates'),
+        based_fields=['city'],
+        zoom=8,
+        default=Point(82.919782, 55.029738),  # Novosibirsk
     )
 
     description = models.TextField(
@@ -94,6 +114,26 @@ class Task(models.Model):
         null=True,
     )
 
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
+    )
+
 
 class Departure(models.Model):
-    pass
+    search_request = models.ForeignKey(
+        models_sr.SearchRequest,
+        verbose_name=_('Search Request'),
+        on_delete=models.CASCADE
+    )
+
+    crew = models.OneToOneField(
+        Crew,
+        verbose_name=_('Crew'),
+        on_delete=models.CASCADE
+    )
