@@ -37,8 +37,8 @@ class Crew(models.Model):
         null=True,
     )
 
-    nickname = models.CharField(
-        _('Nickname'),
+    title = models.CharField(
+        _('Title'),
         max_length=32,
         help_text=_("Required 32 characters or fewer."),
         blank=False,
@@ -57,6 +57,8 @@ class Crew(models.Model):
         on_delete=models.CASCADE
     )
 
+    # members = models.ManyToOneRel
+
     created_at = models.DateTimeField(
         _('Created at'),
         auto_now_add=True
@@ -69,7 +71,7 @@ class Crew(models.Model):
 
     def __str__(self) -> str:
         """Representation of a single instance."""
-        return f'ID {self.id}: {self.nickname}'
+        return f'ID {self.id} ({self.get_status_display()}): {self.title}'
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
@@ -103,7 +105,7 @@ class Task(models.Model):
     # TODO: Coordinates from address or vice-versa
     coordinates = LocationField(
         verbose_name=_('Coordinates'),
-        based_fields=['city'],
+        based_fields=['address'],
         zoom=8,
         default=Point(82.919782, 55.029738),  # Novosibirsk
     )
