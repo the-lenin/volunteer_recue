@@ -1,0 +1,33 @@
+{% extends 'base_logged.html' %}
+
+{% load django_bootstrap5 i18n %}
+
+{% block content %}
+	<div class="m-3">
+		<form class="form m-0" action="" method="get">
+			{{ filter.form.as_table }}
+			<input type="submit" name="filter" value="{% translate 'Show' %}">
+		</form>
+	</div>
+
+	<h1 class=''>{% trans 'Crews' %}: {{ filter.qs|length }}</h1>
+	<div><a class="btn btn-primary" href="{% url 'search_requests:create' %}">{% trans 'Create' %}</a></div>
+	<div>
+		<table class="table table-dark table-striped">
+				<th>ID</th>
+				<th>{% trans 'Title' %}</th>
+				<th>{% trans 'Status' %}</th>
+				<th>{% trans 'Update' %}</th>
+				<th>{% trans 'Delete' %}</th>
+			{% for crew in filter.qs %}
+			<tr>
+				<td>{{ crew.id }}</td>
+				<td><a href="{% url 'search_requests:read' crew.id %}">{{ crew.title }}</a></td>
+				<td>{{ crew.get_status_display }}</td>
+				<td><a href="{% url 'search_requests:update' crew.id %}">{% trans 'Update' %}</a></td>
+				<td><a href="{% url 'search_requests:delete' crew.id %}">{% trans 'Delete' %}</a></td>
+			</tr>
+			{% endfor %}
+		</table>
+	</div>
+{% endblock %}
