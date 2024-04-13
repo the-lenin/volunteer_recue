@@ -26,6 +26,7 @@ urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
     path('', include('web_dashboard.custom_auth.urls')),
     path('requests/', include('web_dashboard.search_requests.urls')),
+    path('logistics/', include('web_dashboard.logistics.urls')),
     path('admin/', admin.site.urls),
 ]
 
