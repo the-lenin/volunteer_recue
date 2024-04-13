@@ -22,7 +22,7 @@ app_name = 'search_requests'
 urlpatterns = [
     # Search Requests
     path('', views.SearchRequestListView.as_view(), name='all'),
-    path('create/', views.SearchResquestCreateView.as_view(), name='create'),
+    path('create/', views.SearchRequestCreateView.as_view(), name='create'),
     path('<int:pk>/', views.SearchRequestDetailView.as_view(), name='read'),
     path(
         '<int:pk>/update/',

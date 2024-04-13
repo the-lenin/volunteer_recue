@@ -33,7 +33,7 @@ class SearchRequestListView(SerRequestBaseView):
         )
 
 
-class SearchResquestCreateView(SerRequestBaseView, CreateView):
+class SearchRequestCreateView(SerRequestBaseView, CreateView):
     """SearchRequest create view."""
     success_message = _('Request succussfully created')
 
