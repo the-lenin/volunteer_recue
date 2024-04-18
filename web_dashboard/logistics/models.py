@@ -108,6 +108,14 @@ class Departure(GetFieldsMixin, models.Model):
         default=StatusVerbose.OPEN,
     )
 
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return f'ID {self.id} ({self.get_status_display()})'
+
+    def get_absolute_url(self) -> str:
+        """Return absolute url to the object."""
+        return reverse('logistics:read', kwargs={'pk': self.pk})
+
 
 class Task(GetFieldsMixin, models.Model):
     """Define a task for a SearchRequest."""
