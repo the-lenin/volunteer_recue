@@ -1,0 +1,37 @@
+{% extends 'base_logged.html' %}
+
+{% load django_bootstrap5 i18n %}
+
+{% block content %}
+<div>
+	<h1 class='text-center'>{% trans 'Logistics' %}</h1>
+	<div><a class="btn btn-primary" href="{% url 'logistics:create' %}">{% trans 'Create departure' %}</a></div>
+</div>
+
+<div class="m-3">
+	<form class="form m-0" action="" method="get">
+		{{ filter.form.as_table }}
+		<input type="submit" name="filter" value="{% translate 'Show' %}">
+	</form>
+</div>
+
+<h1 class=''>{% trans 'Departures Total' %}: {{ filter.qs|length }}</h1>
+<div>
+	<table class="table table-dark table-striped">
+			<th>ID</th>
+			<th>{% trans 'Title' %}</th>
+			<th>{% trans 'Status' %}</th>
+			<th>{% trans 'Update' %}</th>
+			<th>{% trans 'Delete' %}</th>
+		{% for departure in filter.qs %}
+		<tr>
+			<td>{{ departure.id }}</td>
+			<td><a href="{% url 'logistics:read' departure.id %}">{{ departure }}</a></td>
+			<td>{{ departure.get_status_display }}</td>
+			<td><a href="{% url 'logistics:update' departure.id %}">{% trans 'Update' %}</a></td>
+			<td><a href="{% url 'logistics:delete' departure.id %}">{% trans 'Delete' %}</a></td>
+		</tr>
+		{% endfor %}
+	</table>
+</div>
+{% endblock %}
