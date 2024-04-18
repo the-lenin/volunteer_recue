@@ -6,10 +6,11 @@ from phonenumber_field.modelfields import PhoneNumberField
 from location_field.models.spatial import LocationField
 
 from web_dashboard.users.models import CustomUser
+from web_dashboard.search_requests.models import GetFieldsMixin
 from web_dashboard.search_requests import models as models_sr
 
 
-class Crew(models.Model):
+class Crew(GetFieldsMixin, models.Model):
     """Class represent crew."""
 
     class StatusVerbose(models.TextChoices):
@@ -78,11 +79,42 @@ class Crew(models.Model):
         return reverse('logistics:crew_read', kwargs={'pk': self.pk})
 
 
-class Task(models.Model):
-    """Define a task for a SearchRequest."""
+class Departure(GetFieldsMixin, models.Model):
     search_request = models.ForeignKey(
         models_sr.SearchRequest,
+        related_name='departures',
         verbose_name=_('Search Request'),
+        on_delete=models.CASCADE
+    )
+
+    crew = models.OneToOneField(
+        Crew,
+        verbose_name=_('Crew'),
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+    )
+
+    class StatusVerbose(models.TextChoices):
+        """Search request status choices."""
+        OPEN = 'O', _('Open')
+        ACTIVE = 'A', _('Active')
+        CLOSED = 'C', _('Closed')
+
+    status = models.CharField(
+        _('Status'),
+        max_length=1,
+        choices=StatusVerbose.choices,
+        default=StatusVerbose.OPEN,
+    )
+
+
+class Task(GetFieldsMixin, models.Model):
+    """Define a task for a SearchRequest."""
+    departure = models.ForeignKey(
+        Departure,
+        related_name='tasks',
+        verbose_name=_('Departure'),
         on_delete=models.CASCADE
     )
 
@@ -124,18 +156,4 @@ class Task(models.Model):
     updated_at = models.DateTimeField(
         _('Updated at'),
         auto_now=True
-    )
-
-
-class Departure(models.Model):
-    search_request = models.ForeignKey(
-        models_sr.SearchRequest,
-        verbose_name=_('Search Request'),
-        on_delete=models.CASCADE
-    )
-
-    crew = models.OneToOneField(
-        Crew,
-        verbose_name=_('Crew'),
-        on_delete=models.CASCADE
     )
