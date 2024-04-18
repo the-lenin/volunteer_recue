@@ -81,7 +81,7 @@ class DepartureListView(DepartureBaseView):
     def get(self, request, *args, **kwargs):
         """Return tasks index."""
         departures = models.Departure.objects.all()
-        departures_filtered = filters.CrewFilter(
+        departures_filtered = filters.DepartureFilter(
             request.GET, queryset=departures, request=request
         )
         return render(
