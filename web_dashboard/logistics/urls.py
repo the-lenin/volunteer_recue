@@ -20,18 +20,18 @@ from . import views
 app_name = 'logistics'
 
 urlpatterns = [
-    # Search Requests
-    path('', views.CrewListView.as_view(), name='crews'),
-    # path('create/', views.SearchResquestCreateView.as_view(), name='create'),
-    # path('<int:pk>/', views.SearchRequestDetailView.as_view(), name='read'),
-    # path(
-    #     '<int:pk>/update/',
-    #     views.SearchRequestUpdateView.as_view(),
-    #     name='update'
-    # ),
-    # path(
-    #     '<int:pk>/delete/',
-    #     views.SearchRequestDeleteView.as_view(),
-    #     name='delete'
-    # ),
+    # Departures
+    path('', views.DepartureListView.as_view(), name='all'),
+    path('create/', views.DepartureCreateView.as_view(), name='create'),
+    path('<int:pk>/', views.DepartureDetailView.as_view(), name='read'),
+    path(
+        '<int:pk>/update/',
+        views.DepartureUpdateView.as_view(),
+        name='update'
+    ),
+    path(
+        '<int:pk>/delete/',
+        views.DepartureDeleteView.as_view(),
+        name='delete'
+    ),
 ]
