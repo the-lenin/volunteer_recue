@@ -106,7 +106,7 @@ class DepartureCreateView(DepartureBaseView, CreateView):
         context = self.get_context_data()
         tasks = context['tasks']
         with transaction.atomic():
-            form.instance.departure = self.request.departure
+            # form.instance.departure = self.request.departure
             self.object = form.save()
 
             if tasks.is_valid():
