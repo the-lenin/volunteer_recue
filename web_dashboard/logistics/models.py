@@ -147,7 +147,6 @@ class Task(GetFieldsMixin, models.Model):
         verbose_name=_('Coordinates'),
         based_fields=['address'],
         zoom=8,
-        default=Point(82.919782, 55.029738),  # Novosibirsk
     )
 
     description = models.TextField(
@@ -165,3 +164,7 @@ class Task(GetFieldsMixin, models.Model):
         _('Updated at'),
         auto_now=True
     )
+
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return f'{self.title} ({self.coordinates.coords})'
