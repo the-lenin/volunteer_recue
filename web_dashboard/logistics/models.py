@@ -80,6 +80,7 @@ class Crew(GetFieldsMixin, models.Model):
 
 
 class Departure(GetFieldsMixin, models.Model):
+    """Class represents departure."""
     search_request = models.ForeignKey(
         models_sr.SearchRequest,
         related_name='departures',
