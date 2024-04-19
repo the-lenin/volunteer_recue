@@ -14,4 +14,4 @@ class TaskForm(ModelForm):
 
 
 TaskFormSet = inlineformset_factory(models.Departure, models.Task,
-                                    form=TaskForm, extra=0,)
+                                    form=TaskForm, extra=1,)
