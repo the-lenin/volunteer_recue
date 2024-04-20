@@ -92,3 +92,5 @@ docker-up: docker-prune docker-db sleep docker-start docker-migrate
 sleep:
 	sleep 3 
 
+bot-start:
+	DJANGO_SETTINGS_MODULE=$(STARTAPP_NAME).settings poetry run python telegram_bot/bot.py
