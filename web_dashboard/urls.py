@@ -16,10 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from . import views
+from django.views.decorators import csrf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+
+from . import views
 
 
 urlpatterns = [
@@ -28,6 +30,7 @@ urlpatterns = [
     path('requests/', include('web_dashboard.search_requests.urls')),
     path('logistics/', include('web_dashboard.logistics.urls')),
     path('admin/', admin.site.urls),
+    path('json/', csrf.csrf_exempt(views.JsonView.as_view()), name='json'),
 ]
 
 if settings.DEBUG:
