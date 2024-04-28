@@ -13,7 +13,7 @@ import os
 import dj_database_url
 
 from pathlib import Path
-from distutils.util import strtobool
+from setuptools._distutils.util import strtobool
 
 from dotenv import load_dotenv
 
@@ -237,3 +237,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://github.com/django-crispy-forms/crispy-bootstrap5
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Django - Telegram Bot Token
+DJANGO_TG_TOKEN = os.getenv("DJANGO_TG_TOKEN")
