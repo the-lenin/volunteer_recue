@@ -61,16 +61,16 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    text=msg)
 
 
-async def create_crew(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send json to django."""
-    msg_in = update.message.text
-    print(msg_in)
-    print(context.args)
-    response = requests.post(LOCAL_URL, data=msg_in)
-    print(response.__dict__)
-    msg_out = response.json()
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=msg_out)
+# async def create_crew(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     """Send json to django."""
+#     msg_in = update.message.text
+#     print(msg_in)
+#     print(context.args)
+#     response = requests.post(LOCAL_URL, data=msg_in)
+#     print(response.__dict__)
+#     msg_out = response.json()
+#     await context.bot.send_message(chat_id=update.effective_chat.id,
+#                                    text=msg_out)
 
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,13 +103,14 @@ if __name__ == '__main__':
     caps_handler = CommandHandler('caps', caps)
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     info_handler = CommandHandler('info', info)
-    create_crew_handler = CommandHandler('create_crew', create_crew)
+#     create_crew_handler = CommandHandler('create_crew', create_crew)
 
     application.add_handler(start_handler)
     application.add_handler(echo_handler)
     application.add_handler(caps_handler)
     application.add_handler(info_handler)
-    application.add_handler(create_crew_handler)
+    application.add_handler(test_handler)
+#    application.add_handler(create_crew_handler)
 
     # last one
     application.add_handler(unknown_handler)
