@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'web_dashboard.users',
     'web_dashboard.search_requests',
     "web_dashboard.logistics",
+    "web_dashboard.bot_api",
     "crispy_forms",
     "crispy_bootstrap5",
     ]
@@ -240,3 +241,4 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Django - Telegram Bot Token
 DJANGO_TG_TOKEN = os.getenv("DJANGO_TG_TOKEN")
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
