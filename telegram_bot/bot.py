@@ -42,25 +42,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Return 'Ok' msg if connection is working with Django."""
+    """Return 'Ok' response_data if connection is working with Django."""
     header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(LOCAL_URL, headers=header) as resp:
-            msg = await resp.text()
+            response_data = await resp.text()
     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=msg)
+                                   text=response_data)
 
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display present number of the open SearchRequest and Departures."""
     header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
+    payload = {'action': 'info'}
 
     async with aiohttp.ClientSession() as session:
-        async with session.get(LOCAL_URL, headers=header) as resp:
-            msg = await resp.text()
+        async with session.post(LOCAL_URL,
+                                headers=header,
+                                json=payload) as resp:
+            response_data = await resp.json()
     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=msg)
+                                   text=response_data)
 
 # async def create_crew(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #     """Send json to django."""

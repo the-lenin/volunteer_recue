@@ -1,7 +1,9 @@
+import json
+
 from functools import wraps
 from django.views import View
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.utils.translation import gettext as _
 from secrets import compare_digest
 
@@ -9,11 +11,11 @@ from web_dashboard.search_requests.models import SearchRequest
 from web_dashboard.logistics.models import Departure
 
 
-class ApiAuthTokenMixinView(View):
+class AuthTokenMixinView(View):
     """PTB (python-telegram-bot) Auth Token Mixin View."""
 
     @staticmethod
-    def api_auth_token_required(view_func):
+    def auth_token_required(view_func):
         """Decorator adds API token validation."""
 
         @wraps(view_func)
@@ -34,16 +36,25 @@ class ApiAuthTokenMixinView(View):
             return view_func(self, request, *args, **kwargs)
         return _wrapped_func
 
-    def post(self, request, *args, **kwargs):
-        print(request.body)
 
-
-class WebhookView(ApiAuthTokenMixinView):
+class WebhookView(AuthTokenMixinView):
     """Json view."""
 
-    @ApiAuthTokenMixinView.api_auth_token_required
-    def get(self, request, *args, **kwargs):
-        """Return present quantity of open models."""
+    @AuthTokenMixinView.auth_token_required
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """Return ok msg if request is correctly configured."""
+        return JsonResponse({'msg': 'Ok, received'})
+
+    @AuthTokenMixinView.auth_token_required
+    def post(self, request, *args, **kwargs):
+        payload = json.loads(request.body)
+        action = payload.get('action')
+        match action:
+            case 'info':
+                return self.get_info(payload)
+
+    def get_info(self, payload: dict) -> JsonResponse:
+        """Return present quantity of open SearchRequests and Departures."""
         search_requests = SearchRequest.objects.filter(
             status=SearchRequest.StatusVerbose.OPEN
         )
@@ -55,4 +66,6 @@ class WebhookView(ApiAuthTokenMixinView):
             f'{SearchRequest._meta.verbose_name_plural}: {len(search_requests)}\n'
             f'{Departure._meta.verbose_name_plural}: {len(departures)}'
         )
-        return HttpResponse(msg, content_type="text/plain")
+        return JsonResponse({'msg': msg})
+
+
