@@ -6,6 +6,7 @@ import aiohttp
 from telegram import Update
 from telegram.ext import (
     filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes,
+    # RegexHandler, ConversationHandler
 )
 from dotenv import load_dotenv
 
@@ -24,7 +25,7 @@ TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN')
 DJANGO_TG_TOKEN = os.getenv('DJANGO_TG_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
-if not all((HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN)):
+if not all((HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN, WEBHOOK_URL)):
     raise Exception(
         'Please set up the following variables in ".env" file '
         'in the root of the project:\n'
@@ -42,7 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Return 'Ok' response_data if connection is working with Django."""
+    """Return 'Ok' msg if connection is working with Django."""
     header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
 
     async with aiohttp.ClientSession() as session:
@@ -52,42 +53,27 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                    text=response_data)
 
 
-async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Display present number of the open SearchRequest and Departures."""
+async def post_wh(update: Update,
+                  context: ContextTypes.DEFAULT_TYPE,
+                  payload: dict) -> None:
+    """Post payload to webhook."""
     header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
-    payload = {'action': 'info'}
 
     async with aiohttp.ClientSession() as session:
         async with session.post(LOCAL_URL,
                                 headers=header,
                                 json=payload) as resp:
+
             response_data = await resp.json()
+
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=response_data)
 
-# async def create_crew(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     """Send json to django."""
-#     msg_in = update.message.text
-#     print(msg_in)
-#     print(context.args)
-#     response = requests.post(LOCAL_URL, data=msg_in)
-#     print(response.__dict__)
-#     msg_out = response.json()
-#     await context.bot.send_message(chat_id=update.effective_chat.id,
-#                                    text=msg_out)
-#
-#
-# async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     """Echo user message as reply."""
-#     await context.bot.send_message(chat_id=update.effective_chat.id,
-#                                    text=update.message.text)
-#
-#
-# async def caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     """Caps a command given argument."""
-#     text_caps = ' '.join(context.args).upper()
-#     await context.bot.send_message(chat_id=update.effective_chat.id,
-#                                    text=text_caps)
+
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display present number of the open SearchRequest and Departures."""
+    payload = {'action': 'info'}
+    await post_wh(update, context, payload)
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -98,25 +84,22 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-if __name__ == '__main__':
+def main() -> None:
+    """Run the bot."""
     application = ApplicationBuilder().token(TG_BOT_TOKEN).build()
 
     start_handler = CommandHandler('start', start)
     test_handler = CommandHandler('test', test)
-#     echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
-#     caps_handler = CommandHandler('caps', caps)
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     info_handler = CommandHandler('info', info)
-#     create_crew_handler = CommandHandler('create_crew', create_crew)
 
     application.add_handler(start_handler)
-#     application.add_handler(echo_handler)
-#     application.add_handler(caps_handler)
     application.add_handler(info_handler)
     application.add_handler(test_handler)
-#    application.add_handler(create_crew_handler)
-
-    # last one
-    application.add_handler(unknown_handler)
+    application.add_handler(unknown_handler)  # last one
 
     application.run_polling()
+
+
+if __name__ == '__main__':
+    main()
