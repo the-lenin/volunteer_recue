@@ -22,35 +22,26 @@ HOST = os.getenv('HOST')
 PORT = os.getenv('PORT')
 TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN')
 DJANGO_TG_TOKEN = os.getenv('DJANGO_TG_TOKEN')
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 if not all((HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN)):
     raise Exception(
         'Please set up the following variables in ".env" file '
         'in the root of the project:\n'
-        'HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN'
+        'HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN, WEBHOOK_URL'
     )
 
-LOCAL_URL = f"http://{os.getenv('HOST')}:{os.getenv('PORT')}/json/"
+LOCAL_URL = f"http://{os.getenv('HOST')}:{os.getenv('PORT')}/{WEBHOOK_URL}/"
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Welcoming a user at a joining."""
     welcome_msg = "I'm a Volunteer Rescue Bot, please talk to me!"
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=welcome_msg)
 
 
-async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Display basic information."""
-    header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
-    async with aiohttp.ClientSession() as session:
-        async with session.get(LOCAL_URL, headers=header) as resp:
-            msg = await resp.text()
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=msg)
-
-
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Return 'Ok' msg if connection is working with Django."""
     header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
 
@@ -60,6 +51,16 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg)
 
+
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display present number of the open SearchRequest and Departures."""
+    header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(LOCAL_URL, headers=header) as resp:
+            msg = await resp.text()
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg)
 
 # async def create_crew(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #     """Send json to django."""
@@ -71,22 +72,22 @@ async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #     msg_out = response.json()
 #     await context.bot.send_message(chat_id=update.effective_chat.id,
 #                                    text=msg_out)
+#
+#
+# async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     """Echo user message as reply."""
+#     await context.bot.send_message(chat_id=update.effective_chat.id,
+#                                    text=update.message.text)
+#
+#
+# async def caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     """Caps a command given argument."""
+#     text_caps = ' '.join(context.args).upper()
+#     await context.bot.send_message(chat_id=update.effective_chat.id,
+#                                    text=text_caps)
 
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Echo user message as reply."""
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=update.message.text)
-
-
-async def caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Caps a command given argument."""
-    text_caps = ' '.join(context.args).upper()
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=text_caps)
-
-
-async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Return unknown command message if a command is not found."""
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -99,15 +100,15 @@ if __name__ == '__main__':
 
     start_handler = CommandHandler('start', start)
     test_handler = CommandHandler('test', test)
-    echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
-    caps_handler = CommandHandler('caps', caps)
+#     echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
+#     caps_handler = CommandHandler('caps', caps)
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     info_handler = CommandHandler('info', info)
 #     create_crew_handler = CommandHandler('create_crew', create_crew)
 
     application.add_handler(start_handler)
-    application.add_handler(echo_handler)
-    application.add_handler(caps_handler)
+#     application.add_handler(echo_handler)
+#     application.add_handler(caps_handler)
     application.add_handler(info_handler)
     application.add_handler(test_handler)
 #    application.add_handler(create_crew_handler)
