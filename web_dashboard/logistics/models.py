@@ -1,4 +1,5 @@
 from django.db import models
+from django.core import serializers
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.contrib.gis.geos import Point
@@ -107,6 +108,16 @@ class Departure(GetFieldsMixin, models.Model):
         max_length=1,
         choices=StatusVerbose.choices,
         default=StatusVerbose.OPEN,
+    )
+
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
     )
 
     def __str__(self) -> str:
