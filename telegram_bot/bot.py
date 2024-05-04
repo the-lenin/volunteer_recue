@@ -74,16 +74,15 @@ async def post_wh(update: Update,
                                 headers=header,
                                 json=payload) as resp:
 
-            response_data = await resp.json()
-
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=response_data)
+            return await resp.json()
 
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display present number of the open SearchRequest and Departures."""
     payload = {'action': 'info'}
-    await post_wh(update, context, payload)
+    response_data = await post_wh(update, context, payload)
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=response_data)
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -94,13 +93,80 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 # CREW CREATION
-CREW_NAME, CREW_LOCATION, CREW_CAPACITY, CHOOSE_ACTION = range(4)
+(
+    CHOOSE_DEPARTURE,
+    DEPARTURE_ACTION,
+    CREW_NAME,
+    CREW_LOCATION,
+    CREW_CAPACITY,
+    CHOOSE_ACTION
+) = range(6)
 
 
 async def start_crew_creation(update: Update,
                               context: ContextTypes.DEFAULT_TYPE) -> int:
+    payload = {'action': 'get_open_departures'}
+    response_data = await post_wh(update, context, payload)
+    departures = response_data.get('departures')
+
+    if not departures:
+        await update.message.reply_text(
+            "There are no available Departures, please try later."
+        )
+        return ConversationHandler.END
+
+    context.user_data['departures'] = departures
+
+    keyboard = [
+        [(
+            f"{ind}. {item['search_request']['full_name']} "
+            f"{item['search_request']['city']}"
+        )] for ind, item in enumerate(departures)
+    ]
+
     await update.message.reply_text(
-        "Let's create a crew! Please send the name of the crew."
+        "Let's create a crew! Please choose Departure.",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
+    )
+
+    return CHOOSE_DEPARTURE
+
+
+async def choose_departure(update: Update,
+                           context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Display detailed information of the chosen departure with buttons."""
+    selected_departure_index = int(update.message.text.split('.')[0])
+    selected_departure = context.user_data['departures'][selected_departure_index]
+
+    # Display detailed information about the selected departure with buttons
+    detailed_info_message = (
+        f'raw json:\n{selected_departure}'
+        # f"Departure Details:\n"
+        # f"Full Name: {selected_departure['search_request']['full_name']}\n"
+        # f"City: {selected_departure['search_request']['city']}\n"
+        # Add other relevant departure details here
+    )
+
+    keyboard = [
+        ["Select", "Back", "Cancel"]
+    ]
+
+    await update.message.reply_text(
+        detailed_info_message,
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
+    )
+
+    # Store the selected departure information in the context
+    context.user_data['selected_departure'] = selected_departure
+
+    return DEPARTURE_ACTION 
+
+
+async def receive_departure(update: Update,
+                            context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["departure"] = update.message.text
+    await update.message.reply_text(
+        "Please send the name of the crew."
     )
     return CREW_NAME
 
@@ -126,6 +192,7 @@ async def receive_crew_location(update: Update,
 
 async def receive_crew_capacity(update: Update,
                                 context: ContextTypes.DEFAULT_TYPE) -> int:
+    departure = context.user_data["departure"]
     crew_name = context.user_data["crew_name"]
     crew_location = context.user_data["crew_location"]
     crew_capacity = update.message.text
@@ -133,6 +200,7 @@ async def receive_crew_capacity(update: Update,
     # Perform crew creation logic here, e.g., save to database
     # Then, provide feedback to the user
     reply_message = (
+        f"Departure {departure}\n"
         f"Crew '{crew_name}' created successfully!\n"
         f"Location: {crew_location}\n"
         f"Capacity: {crew_capacity}\n\n"
@@ -210,10 +278,15 @@ def main() -> None:
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     info_handler = CommandHandler('info', info)
 
-    # Define conversation handler with states
     crew_creation_handler = ConversationHandler(
         entry_points=[CommandHandler("createcrew", start_crew_creation)],
         states={
+            CHOOSE_DEPARTURE: [MessageHandler(
+                filters.TEXT & ~filters.COMMAND, choose_departure
+            )],
+            DEPARTURE_ACTION: [MessageHandler(
+                filters.TEXT & ~filters.COMMAND, receive_departure
+            )],
             CREW_NAME: [MessageHandler(
                 filters.TEXT & ~filters.COMMAND, receive_crew_name
             )],
