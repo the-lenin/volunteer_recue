@@ -135,8 +135,8 @@ async def start_crew_creation(update: Update,
 async def choose_departure(update: Update,
                            context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display detailed information of the chosen departure with buttons."""
-    selected_departure_index = int(update.message.text.split('.')[0])
-    selected_departure = context.user_data['departures'][selected_departure_index]
+    selected_index = int(update.message.text.split('.')[0])
+    selected_departure = context.user_data['departures'][selected_index]
 
     # Display detailed information about the selected departure with buttons
     detailed_info_message = (
@@ -159,7 +159,7 @@ async def choose_departure(update: Update,
     # Store the selected departure information in the context
     context.user_data['selected_departure'] = selected_departure
 
-    return DEPARTURE_ACTION 
+    return DEPARTURE_ACTION
 
 
 async def receive_departure(update: Update,
