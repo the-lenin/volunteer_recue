@@ -86,7 +86,5 @@ class WebhookView(AuthTokenMixinView):
             'msg': 'Ok, received',
             'departures': departures,
         }
-        print(departures)
-        # data = serializers.serialize('json', json_response)
-        # print(data)
+
         return JsonResponse(json_response)
