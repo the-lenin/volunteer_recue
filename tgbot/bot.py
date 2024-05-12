@@ -1,7 +1,8 @@
 import os
 import logging
 import django
-import asyncio
+from tgbot.logging_config import setup_logging_config
+
 
 from telegram import (
     Update,
@@ -13,45 +14,88 @@ from telegram import (
 
 from telegram.ext import (
     filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes,
-    ConversationHandler,  # RegexHandler,
+    CallbackQueryHandler,
+    ConversationHandler,
 )
+
+setup_logging_config()
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
 
 from django.conf import settings  # noqa: E402
-from django.core.paginator import Paginator  # noqa: E402
 from web_dashboard.logistics.models import Departure  # noqa: E402
-from web_dashboard.logistics.serializers import DepartureSerializer  # noqa: E402 
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
-from asgiref.sync import sync_to_async
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-# reply_keyboard = [
-#     ['Info', 'Help'],
-#     ['Create crew'],
-#     ['Update crew'],
-# ]
-# markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-
-# Basic features:
-# start, info, unknown
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+(
+    SHOWING,
+    SELECT_ACTION,
+    STOPPING,
+
+    INFO,
+    HELP,
+
+    CREW_CREATION,
+    CREW_UPDATE,
+
+    LIST_DEPARTURES,
+    DISPLAY_DEPARTURE,
+    SELECT_DEPARTURE_ACTION,
+
+    CREW_NAME,
+    CREW_LOCATION,
+    CREW_CAPACITY,
+    CREW_VALIDATE_ACTION,
+
+    SELECT,
+    BACK,
+    START_OVER,
+) = map(chr, range(17))
+
+END = ConversationHandler.END
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Welcoming a user at the joining."""
-    welcome_msg = "I'm a Volunteer Rescue Bot, please talk to me!"
-    # await update.message.reply_text(welcome_msg, reply_markup=markup)
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=welcome_msg)
+    logger.info('Inside start()')
+    msg = "I'm a Volunteer Rescue Bot!\nWhat do you want to do?"
+
+    buttons = [
+        [
+            InlineKeyboardButton('Info', callback_data=str(INFO)),
+            InlineKeyboardButton('Help', callback_data=str(HELP)),
+        ],
+        [
+            InlineKeyboardButton('Create crew',
+                                 callback_data=str(CREW_CREATION)),
+            InlineKeyboardButton('Update crew',
+                                 callback_data=str(CREW_UPDATE)),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    logger.info(f'{update.callback_query}')
+    if context.user_data.get(START_OVER):
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("What is next?", reply_markup=keyboard)
+    else:
+        await update.message.reply_text(msg, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECT_ACTION
 
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display present number of the open SearchRequest and Departures."""
+    logger.info('Inside info()')
+    query = update.callback_query
+    await query.answer()
+
     search_requests = await SearchRequest.objects.filter(
         status=SearchRequest.StatusVerbose.OPEN
     ).acount()
@@ -60,13 +104,43 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             status=Departure.StatusVerbose.OPEN
     ).acount()
 
-    information = (
+    msg = (
         f'{SearchRequest._meta.verbose_name_plural}: {search_requests}\n'
         f'{Departure._meta.verbose_name_plural}: {departures}'
     )
 
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=information)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Back", callback_data=str(END))],
+    ])
+
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    context.user_data[START_OVER] = True
+    logger.info("Awaiting button?")
+    return SHOWING
+
+
+async def help_command(update: Update,
+                       context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display help message."""
+    query = update.callback_query
+    await query.answer()
+
+    msg = (
+        "/start - start conversation and display all available actions\n"
+        "/info - display current status of activities\n"
+        "/help - display this message\n"
+        "/cancel- cancel conversation"
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Back", callback_data=str(END))],
+    ])
+
+    # await context.bot.send_message(chat_id=update.effective_chat.id,
+    #                                text=msg)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    context.user_data[START_OVER] = True
+    return SHOWING
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -76,27 +150,15 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         text="Sorry, I didn't understand that command."
     )
 
-# CREW CREATION
-(
-    LIST_DEPARTURES,
-    DISPLAY_DEPARTURE,
-    HANDLE_DEPARTURE_ACTION,
-    CREW_NAME,
-    CREW_LOCATION,
-    CREW_CAPACITY,
-    CHOOSE_ACTION
-) = range(6)
-
-
-async def start_crew_creation(update: Update,
-                              context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Start crew creation conversation."""
-    return LIST_DEPARTURES
-
 
 async def list_departures(update: Update,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display a list of all departures with open status."""
+    query = update.callback_query
+    await query.answer()
+    # crew_action = query.data
+    # context.user_data['crew_action'] = crew_action
+
     departures = Departure.objects.filter(status=Departure.StatusVerbose.OPEN)\
         .select_related('search_request')
 
@@ -111,25 +173,32 @@ async def list_departures(update: Update,
 
     for ind, dep in enumerate(departures):
         keyboard.append([
-             f"{ind}. {dep.search_request.full_name} - "
-             f"{dep.search_request.city} (Crews: {await dep.crews.acount()})"
+            InlineKeyboardButton(
+                f"{ind}. {dep.search_request.full_name} - "
+                f"{dep.search_request.city} "
+                f"(Crews: {await dep.crews.acount()})",
+                callback_data=str(ind)
+            )
         ])
 
     context.user_data['departures'] = list(zip(departures, keyboard))
 
-    await update.message.reply_text(
+    await query.edit_message_text(
         f"Total number of departures: {len(departures)}\n"
         "Let's create a crew! Please choose Departure.",
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
     return DISPLAY_DEPARTURE
 
 
 async def display_departure(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display detailed information of the chosen departure with buttons."""
-    index = int(update.message.text.split('.')[0])
+    query = update.callback_query
+    await query.answer()
+
+    logger.info(query)
+    index = int(query.data)
     departure = context.user_data['departures'][index]
 
     # Display detailed information about the selected departure with buttons
@@ -139,7 +208,7 @@ async def display_departure(update: Update,
         async for task in dep.tasks.all()
     ])
 
-    detailed_info_message = (
+    msg = (
         f"""
 Departure ID: {dep.id}
 Number of crews: {await dep.crews.acount()}
@@ -158,51 +227,31 @@ raw tasks:\n{dep.tasks.__dict__}
         """
     )
 
-    keyboard = [
-        ["Select", "Back", "Cancel"]
+    buttons = [
+        [
+            InlineKeyboardButton("Select", callback_data=str(SELECT)),
+            InlineKeyboardButton("Back", callback_data=str(BACK)),
+            InlineKeyboardButton("Cancel", callback_data=str(END)),
+        ]
     ]
 
-    await update.message.reply_text(
-        detailed_info_message,
-        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
-    )
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
 
-    # Store the selected departure information in the context
-    context.user_data['selected_departure'] = departure
+    context.user_data['departure'] = {'pk': dep.get('pk'),
+                                      'index': index}
 
-    return HANDLE_DEPARTURE_ACTION
+    return SELECT_DEPARTURE_ACTION
 
-
-async def handle_departure_action(update: Update,
-                                  context: ContextTypes.DEFAULT_TYPE) -> int:
-    action = update.message.text
-
-    match action:
-        case "Select":
-            await update.message.reply_text(
-                "Selecting Departure",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            # context.user_data['selected_departure'] =
-            context.user_data['departures'].clear()
-            return CREW_NAME
-
-        case "Back":
-            return CREW_NAME
-
-        case "Cancel":
-            return await cancel_crew_creation(update, context)
-
-        case _:
-            await update.message.reply_text(
-                "Invalid action. Please choose from the options."
-            )
-            return CHOOSE_ACTION
 
 async def receive_departure(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["departure"] = update.message.text
+    pk, ind = context.user_data["departure"]
     await update.message.reply_text(
+        "You selected Departure:\n"
+        f'{ind}: ID {pk}\n'
+        f'{context.departures[ind]}'
+
         "Please send the name of the crew."
     )
     return CREW_NAME
@@ -210,7 +259,8 @@ async def receive_departure(update: Update,
 
 async def receive_crew_name(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["crew_name"] = update.message.text
+    crew_name = update.message.text
+    context.user_data["crew_name"] = crew_name
     await update.message.reply_text(
         "Great! Now, please share the location of the crew"
         " (e.g., address or coordinates)."
@@ -220,8 +270,10 @@ async def receive_crew_name(update: Update,
 
 async def receive_crew_location(update: Update,
                                 context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["crew_location"] = update.message.text
+    crew_location = update.message.text
+    context.user_data["crew_location"] = crew_location
     await update.message.reply_text(
+        f"{crew_location=}"
         "Awesome! Lastly, please specify the capacity of the crew."
     )
     return CREW_CAPACITY
@@ -234,7 +286,7 @@ async def receive_crew_capacity(update: Update,
     crew_location = context.user_data["crew_location"]
     crew_capacity = update.message.text
 
-    # Perform crew creation logic here, e.g., save to database
+    # TODO: Perform crew creation logic here, e.g., save to database
     # Then, provide feedback to the user
     reply_message = (
         f"Departure {departure}\n"
@@ -252,98 +304,93 @@ async def receive_crew_capacity(update: Update,
         reply_message + "What would you like to do?",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
     )
-    return CHOOSE_ACTION
+    return SELECT_ACTION
 
 
-async def cancel_crew_creation(update: Update,
-                               context: ContextTypes.DEFAULT_TYPE) -> int:
+async def crew_validate(update: Update,
+                        context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Display actions before creation of the crew."""
+    pass
+
+
+async def stop(update: Update,
+               context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End conversation by command."""
     await update.message.reply_text("Crew creation canceled.",
                                     reply_markup=ReplyKeyboardRemove())
 
-    # Clear user data after canceling the conversation
     context.user_data.clear()
-    return ConversationHandler.END
-
-
-async def handle_action(update: Update,
-                        context: ContextTypes.DEFAULT_TYPE) -> int:
-    action = update.message.text
-
-    match action:
-        case "Done":
-            await update.message.reply_text(
-                "Saving crew to Database...",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            context.user_data.clear()
-            return ConversationHandler.END
-
-        case "Change Name":
-            await update.message.reply_text(
-                "Please send the new name of the crew."
-            )
-            return CREW_NAME
-
-        case "Change Location":
-            await update.message.reply_text(
-                "Please send the new location of the crew."
-            )
-            return CREW_LOCATION
-
-        case "Change Capacity":
-            await update.message.reply_text(
-                "Please specify the new capacity of the crew."
-            )
-            return CREW_CAPACITY
-
-        case "Cancel":
-            return await cancel_crew_creation(update, context)
-
-        case _:
-            await update.message.reply_text(
-                "Invalid action. Please choose from the options."
-            )
-            return CHOOSE_ACTION
+    return END
 
 
 def main() -> None:
     """Run the bot."""
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
 
-    start_handler = CommandHandler('start', start)
-    # test_handler = CommandHandler('test', test)
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     info_handler = CommandHandler('info', info)
+    help_handler = CommandHandler('help', help_command)
 
-    crew_creation_handler = ConversationHandler(
-        entry_points=[CommandHandler("createcrew", start_crew_creation)],
+    crew_action_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(
+            receive_departure, pattern="^" + str(SELECT) + "$"
+        )],
+
         states={
-            CHOOSE_DEPARTURE: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, choose_departure
-            )],
-            DEPARTURE_ACTION: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, receive_departure
-            )],
-            CREW_NAME: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, receive_crew_name
-            )],
-            CREW_LOCATION: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, receive_crew_location
-            )],
-            CREW_CAPACITY: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, receive_crew_capacity
-            )],
-            CHOOSE_ACTION: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, handle_action
-            )],
+            SHOWING: [CallbackQueryHandler(receive_departure,
+                                           pattern="^" + str(END) + "$")],
+
+            CREW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                       receive_crew_name)],
+            CREW_LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           receive_crew_location)],
+            CREW_CAPACITY: [MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           receive_crew_capacity)],
+            CREW_VALIDATE_ACTION: [CallbackQueryHandler(crew_validate)],
         },
-        fallbacks=[CommandHandler("cancel", cancel_crew_creation)],
+        fallbacks=[CommandHandler("cancel", stop)],
     )
 
-    application.add_handler(start_handler)
+    departure_selction_handlers = [
+        crew_action_handler,
+        CallbackQueryHandler(list_departures, pattern="^" + str(BACK) + "$"),
+        CallbackQueryHandler(stop, pattern="^" + str(END) + "$")
+    ]
+
+    departure_action_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(
+            list_departures, pattern=f"^{CREW_CREATION}|{CREW_UPDATE}$"
+        )],
+
+        states={
+            DISPLAY_DEPARTURE: [CallbackQueryHandler(display_departure)],
+            SELECT_DEPARTURE_ACTION: departure_selction_handlers,
+        },
+
+        fallbacks=[CommandHandler("cancel", stop)],
+    )
+
+    selection_handlers = [
+        departure_action_handler,
+        CallbackQueryHandler(info, pattern="^" + str(INFO) + "$"),
+        CallbackQueryHandler(help_command, pattern="^" + str(HELP) + "$"),
+    ]
+
+    action_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            SHOWING: [CallbackQueryHandler(start,
+                                           pattern="^" + str(END) + "$")],
+            SELECT_ACTION: selection_handlers,
+            STOPPING: [CommandHandler("stop", start)],
+        },
+        fallbacks=[CommandHandler("cancel", stop)],
+        # per_message=True,
+    )
+
     application.add_handler(info_handler)
-    # application.add_handler(test_handler)
-    application.add_handler(crew_creation_handler)
+    application.add_handler(help_handler)
+    application.add_handler(action_handler)
     application.add_handler(unknown_handler)  # last one
 
     application.run_polling()
