@@ -1,12 +1,24 @@
 import logging
 import os
-import asyncio  # noqa: F401
 import aiohttp
 
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import (
+    Update,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    InlineKeyboardButton
+)
+
+from telegram.constants import ParseMode
+
 from telegram.ext import (
-    filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes,
-    ConversationHandler,  # RegexHandler,
+    filters,
+    MessageHandler,
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    # RegexHandler,
 )
 
 from dotenv import load_dotenv
@@ -22,15 +34,13 @@ logging.basicConfig(
 
 HOST = os.getenv('HOST')
 PORT = os.getenv('PORT')
-TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 DJANGO_TG_TOKEN = os.getenv('DJANGO_TG_TOKEN')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
-if not all((HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN, WEBHOOK_URL)):
+if not all((HOST, PORT, TELEGRAM_TOKEN, DJANGO_TG_TOKEN, WEBHOOK_URL)):
     raise Exception(
-        'Please set up the following variables in ".env" file '
-        'in the root of the project:\n'
-        'HOST, PORT, TG_BOT_TOKEN, DJANGO_TG_TOKEN, WEBHOOK_URL'
+        'Please set up missing variables in ".env" in root of the project.'
     )
 
 LOCAL_URL = f"http://{os.getenv('HOST')}:{os.getenv('PORT')}/{WEBHOOK_URL}/"
@@ -43,24 +53,16 @@ LOCAL_URL = f"http://{os.getenv('HOST')}:{os.getenv('PORT')}/{WEBHOOK_URL}/"
 # ]
 # markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
+# Basic features:
+# start, test, post_wh, info, unknown
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Welcoming a user at a joining."""
+    """Welcoming a user at the joining."""
     welcome_msg = "I'm a Volunteer Rescue Bot, please talk to me!"
     # await update.message.reply_text(welcome_msg, reply_markup=markup)
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=welcome_msg)
-
-
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Return 'Ok' msg if connection is working with Django."""
-    header = {'Authorization': f'access_token {DJANGO_TG_TOKEN}'}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(LOCAL_URL, headers=header) as resp:
-            response_data = await resp.text()
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=response_data)
 
 
 async def post_wh(update: Update,
@@ -75,6 +77,13 @@ async def post_wh(update: Update,
                                 json=payload) as resp:
 
             return await resp.json()
+
+
+async def test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Return 'Ok' msg if connection is working with Django."""
+    response_data = await post_wh(update, context, payload={'action': 'test'})
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=response_data)
 
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -105,6 +114,7 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def start_crew_creation(update: Update,
                               context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start crew creation conversation."""
     payload = {'action': 'get_open_departures'}
     response_data = await post_wh(update, context, payload)
     departures = response_data.get('departures')
@@ -121,11 +131,17 @@ async def start_crew_creation(update: Update,
         [(
             f"{ind}. {item['search_request']['full_name']} "
             f"{item['search_request']['city']}"
-        )] for ind, item in enumerate(departures)
+        )] for ind, item in enumerate(departures)  # TODO: add paginator
     ]
 
+    msg = (
+        "Let's create a crew!\n\n"
+        f"Number of departures: {len(departures)}\n"
+        "Please choose Departure."
+    )
+
     await update.message.reply_text(
-        "Let's create a crew! Please choose Departure.",
+        msg,
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
     )
 
@@ -223,7 +239,6 @@ async def cancel_crew_creation(update: Update,
     await update.message.reply_text("Crew creation canceled.",
                                     reply_markup=ReplyKeyboardRemove())
 
-    # Clear user data after canceling the conversation
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -271,7 +286,7 @@ async def handle_action(update: Update,
 
 def main() -> None:
     """Run the bot."""
-    application = ApplicationBuilder().token(TG_BOT_TOKEN).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     start_handler = CommandHandler('start', start)
     test_handler = CommandHandler('test', test)
