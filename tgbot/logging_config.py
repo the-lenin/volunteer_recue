@@ -31,8 +31,11 @@ class CustomFormatter(logging.Formatter):
 
 def setup_logging_config(DEBUG: bool = False):
     "Setup logging configuration"
+
     log_dir = 'logs'
+    filename = 'bot.log'
     os.makedirs(log_dir, exist_ok=True)
+
     LEVEL = {True: "DEBUG", False: "INFO"}.get(DEBUG, False)
 
     LOGGING_CFG = {
@@ -71,7 +74,7 @@ def setup_logging_config(DEBUG: bool = False):
             "rotating_file": {
                 "class": "logging.handlers.RotatingFileHandler",
                 "formatter": "detailed",
-                "filename": "logs/rotating.log",
+                "filename": f"{log_dir}/rotating.log",
                 "maxBytes": 100_000_000,
                 "backupCount": 3,
             },
@@ -79,7 +82,7 @@ def setup_logging_config(DEBUG: bool = False):
                 "class": "logging.FileHandler",
                 "mode": "w",
                 "formatter": "detailed",
-                "filename": "logs/cardcow.log",
+                "filename": f"{log_dir}/{filename}",
                 "level": "DEBUG",
             },
         },
