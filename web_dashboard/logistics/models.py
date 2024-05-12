@@ -11,8 +11,55 @@ from web_dashboard.search_requests.models import GetFieldsMixin
 from web_dashboard.search_requests import models as models_sr
 
 
+class Departure(GetFieldsMixin, models.Model):
+    """Class represents departure."""
+    search_request = models.ForeignKey(
+        models_sr.SearchRequest,
+        related_name='departures',
+        verbose_name=_('Search Request'),
+        on_delete=models.CASCADE
+    )
+
+    class StatusVerbose(models.TextChoices):
+        """Search request status choices."""
+        OPEN = 'O', _('Open')
+        ACTIVE = 'A', _('Active')
+        CLOSED = 'C', _('Closed')
+
+    status = models.CharField(
+        _('Status'),
+        max_length=1,
+        choices=StatusVerbose.choices,
+        default=StatusVerbose.OPEN,
+    )
+
+    created_at = models.DateTimeField(
+        _('Created at'),
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        _('Updated at'),
+        auto_now=True
+    )
+
+    def __str__(self) -> str:
+        """Representation of a single instance."""
+        return f'ID {self.id} ({self.get_status_display()})'
+
+    def get_absolute_url(self) -> str:
+        """Return absolute url to the object."""
+        return reverse('logistics:read', kwargs={'pk': self.pk})
+
+
 class Crew(GetFieldsMixin, models.Model):
     """Class represent crew."""
+    departure = models.ForeignKey(
+        Departure,
+        related_name='crews',
+        verbose_name=_('Departure'),
+        on_delete=models.CASCADE,
+    )
 
     class StatusVerbose(models.TextChoices):
         """Crew status choices."""
@@ -78,55 +125,6 @@ class Crew(GetFieldsMixin, models.Model):
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
         return reverse('logistics:crew_read', kwargs={'pk': self.pk})
-
-
-class Departure(GetFieldsMixin, models.Model):
-    """Class represents departure."""
-    search_request = models.ForeignKey(
-        models_sr.SearchRequest,
-        related_name='departures',
-        verbose_name=_('Search Request'),
-        on_delete=models.CASCADE
-    )
-
-    crew = models.OneToOneField(
-        Crew,
-        verbose_name=_('Crew'),
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-    )
-
-    class StatusVerbose(models.TextChoices):
-        """Search request status choices."""
-        OPEN = 'O', _('Open')
-        ACTIVE = 'A', _('Active')
-        CLOSED = 'C', _('Closed')
-
-    status = models.CharField(
-        _('Status'),
-        max_length=1,
-        choices=StatusVerbose.choices,
-        default=StatusVerbose.OPEN,
-    )
-
-    created_at = models.DateTimeField(
-        _('Created at'),
-        auto_now_add=True
-    )
-
-    updated_at = models.DateTimeField(
-        _('Updated at'),
-        auto_now=True
-    )
-
-    def __str__(self) -> str:
-        """Representation of a single instance."""
-        return f'ID {self.id} ({self.get_status_display()})'
-
-    def get_absolute_url(self) -> str:
-        """Return absolute url to the object."""
-        return reverse('logistics:read', kwargs={'pk': self.pk})
 
 
 class Task(GetFieldsMixin, models.Model):
