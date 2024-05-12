@@ -139,6 +139,15 @@ async def help_command(update: Update,
     return SHOWING
 
 
+async def stop(update: Update,
+               context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End conversation by command."""
+    msg = "Canceled. Return back to /start."
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
+    context.user_data.clear()
+    return END
+
+
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Return unknown command message if a command is not found."""
     await context.bot.send_message(
@@ -177,7 +186,7 @@ async def list_departures(update: Update,
             )
         ])
 
-    context.user_data['departures'] = list(zip(departures, keyboard))
+    context.user_data['departures'] = list(zip(departures, keyboard))  # TODO: Why to keep keyboard???
 
     await query.edit_message_text(
         f"Total number of departures: {len(departures)}\n"
@@ -233,22 +242,27 @@ raw tasks:\n{dep.tasks.__dict__}
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
 
-    context.user_data['departure'] = {'pk': dep.pk,
-                                      'index': index}
-
+    context.user_data['departure'] = {'pk': dep.pk, 'index': index}
     return SELECT_DEPARTURE_ACTION
 
 
 async def receive_departure(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
-    pk, ind = context.user_data["departure"]
-    await update.message.reply_text(
-        "You selected Departure:\n"
-        f'{ind}: ID {pk}\n'
-        f'{context.departures[ind]}'
+    # TODO: Disable InlineKeyboard and change message
+    query = update.callback_query
+    await query.answer()
 
-        "Please send the name of the crew."
+    pk, ind = context.user_data["departure"].values()
+    logger.info(f'{context.user_data=},\n{pk=}, {ind=}')
+    msg = (
+            "You selected Departure:\n"
+            f'{ind}: ID {pk}\n'
+            f'{context.user_data["departures"][ind]}'
+
+            "Please send the name of the crew."
     )
+
+    await query.edit_message_text(msg)
     return CREW_NAME
 
 
@@ -308,24 +322,13 @@ async def crew_validate(update: Update,
     pass
 
 
-async def stop(update: Update,
-               context: ContextTypes.DEFAULT_TYPE) -> int:
-    """End conversation by command."""
-    # query = update.callback_query
-
+async def stop_nested(update: Update,
+                      context: ContextTypes.DEFAULT_TYPE) -> int:
+    """End nested conversation by command."""
     msg = "Canceled. Return back to /start."
-    # if query:
-    #     await query.answer()
-#        buttons = [
-#            [InlineKeyboardButton('❌')]
-#        ]
-#
-#        keyboard = InlineKeyboardMarkup(buttons)
-#        await query.edit_message_text(msg, reply_markup=keyboard)
-#    else:
     await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
     context.user_data.clear()
-    return END
+    return STOPPING
 
 
 def main() -> None:
@@ -359,7 +362,7 @@ def main() -> None:
     departure_selction_handlers = [
         crew_action_handler,
         CallbackQueryHandler(list_departures, pattern="^" + str(BACK) + "$"),
-        CallbackQueryHandler(stop, pattern="^" + str(END) + "$")
+        CallbackQueryHandler(stop_nested, pattern="^" + str(END) + "$")
     ]
 
     departure_action_handler = ConversationHandler(
@@ -373,7 +376,10 @@ def main() -> None:
         },
 
         # TODO: works only as command, END stay at the present level
-        fallbacks=[CommandHandler("cancel", stop)],
+        fallbacks=[CommandHandler("cancel", stop_nested)],
+        map_to_parent={
+            STOPPING: END
+        },
     )
 
     selection_handlers = [
@@ -391,13 +397,14 @@ def main() -> None:
             STOPPING: [CommandHandler("stop", start)],
         },
         fallbacks=[CommandHandler("cancel", stop)],
-        # per_message=True,
     )
 
     application.add_handler(info_handler)
     application.add_handler(help_handler)
     application.add_handler(action_handler)
-    application.add_handler(unknown_handler)  # last one
+
+    # unknown_handler hast to be the last one
+    application.add_handler(unknown_handler)
 
     application.run_polling()
 
