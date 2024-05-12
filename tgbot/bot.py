@@ -7,7 +7,7 @@ from tgbot.logging_config import setup_logging_config
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
+    # ReplyKeyboardRemove,
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
@@ -60,7 +60,6 @@ END = ConversationHandler.END
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Welcoming a user at the joining."""
-    logger.info('Inside start()')
     msg = "I'm a Volunteer Rescue Bot!\nWhat do you want to do?"
 
     buttons = [
@@ -78,7 +77,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     keyboard = InlineKeyboardMarkup(buttons)
 
-    logger.info(f'{update.callback_query}')
     if context.user_data.get(START_OVER):
         query = update.callback_query
         await query.answer()
@@ -92,7 +90,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display present number of the open SearchRequest and Departures."""
-    logger.info('Inside info()')
     query = update.callback_query
     await query.answer()
 
@@ -115,7 +112,6 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await query.edit_message_text(msg, reply_markup=keyboard)
     context.user_data[START_OVER] = True
-    logger.info("Awaiting button?")
     return SHOWING
 
 
@@ -197,7 +193,6 @@ async def display_departure(update: Update,
     query = update.callback_query
     await query.answer()
 
-    logger.info(query)
     index = int(query.data)
     departure = context.user_data['departures'][index]
 
@@ -238,7 +233,7 @@ raw tasks:\n{dep.tasks.__dict__}
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
 
-    context.user_data['departure'] = {'pk': dep.get('pk'),
+    context.user_data['departure'] = {'pk': dep.pk,
                                       'index': index}
 
     return SELECT_DEPARTURE_ACTION
@@ -316,9 +311,19 @@ async def crew_validate(update: Update,
 async def stop(update: Update,
                context: ContextTypes.DEFAULT_TYPE) -> int:
     """End conversation by command."""
-    await update.message.reply_text("Crew creation canceled.",
-                                    reply_markup=ReplyKeyboardRemove())
+    # query = update.callback_query
 
+    msg = "Canceled. Return back to /start."
+    # if query:
+    #     await query.answer()
+#        buttons = [
+#            [InlineKeyboardButton('❌')]
+#        ]
+#
+#        keyboard = InlineKeyboardMarkup(buttons)
+#        await query.edit_message_text(msg, reply_markup=keyboard)
+#    else:
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
     context.user_data.clear()
     return END
 
@@ -367,6 +372,7 @@ def main() -> None:
             SELECT_DEPARTURE_ACTION: departure_selction_handlers,
         },
 
+        # TODO: works only as command, END stay at the present level
         fallbacks=[CommandHandler("cancel", stop)],
     )
 
