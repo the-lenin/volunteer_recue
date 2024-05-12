@@ -2,3 +2,4 @@
 staticfiles/
 .env
 media/
+/logs
