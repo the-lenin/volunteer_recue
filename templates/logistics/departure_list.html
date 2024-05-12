@@ -21,7 +21,7 @@
 			<th>ID</th>
 			<th>{% trans 'Title' %}</th>
 			<th>{% trans 'Status' %}</th>
-			<th>{% trans 'Crew' %}</th>
+			<th>{% trans 'Crews' %}</th>
 			<th>{% trans 'Update' %}</th>
 			<th>{% trans 'Delete' %}</th>
 		{% for departure in filter.qs %}
@@ -29,8 +29,8 @@
 			<td>{{ departure.id }}</td>
 			<td><a href="{% url 'logistics:read' departure.id %}">{{ departure }}</a></td>
 			<td>{{ departure.get_status_display }}</td>
-			{% with crew=departure.crew %}
-			<td>{% if crew %}{# Notification symbol #}<a href="#">{{ crew }}</a>{% else %}<span class="text-danger">{{ crew }}</span>{% endif %}</td>
+			{% with crews=departure.crews %}
+			<td>{% if crews %}{# Notification symbol #}<a href="#">{{ crews.count }}</a>{% else %}<span class="text-danger">{{ crews }}</span>{% endif %}</td>
 			{% endwith %}
 			<td><a href="{% url 'logistics:update' departure.id %}">{% trans 'Update' %}</a></td>
 			<td><a href="{% url 'logistics:delete' departure.id %}">{% trans 'Delete' %}</a></td>
