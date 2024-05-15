@@ -186,7 +186,8 @@ async def list_departures(update: Update,
             )
         ])
 
-    context.user_data['departures'] = list(zip(departures, keyboard))  # TODO: Why to keep keyboard???
+    # TODO: Why to keep keyboard???
+    context.user_data['departures'] = list(zip(departures, keyboard))
 
     await query.edit_message_text(
         f"Total number of departures: {len(departures)}\n"
@@ -248,21 +249,22 @@ raw tasks:\n{dep.tasks.__dict__}
 
 async def receive_departure(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
-    # TODO: Disable InlineKeyboard and change message
     query = update.callback_query
     await query.answer()
+    await query.delete_message()
 
     pk, ind = context.user_data["departure"].values()
     logger.info(f'{context.user_data=},\n{pk=}, {ind=}')
     msg = (
             "You selected Departure:\n"
             f'{ind}: ID {pk}\n'
-            f'{context.user_data["departures"][ind]}'
+            f'{context.user_data["departures"][ind]}\n\n'
 
-            "Please send the name of the crew."
+            "Please enter the name of the crew:"
     )
 
-    await query.edit_message_text(msg)
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg)
     return CREW_NAME
 
 
@@ -270,10 +272,11 @@ async def receive_crew_name(update: Update,
                             context: ContextTypes.DEFAULT_TYPE) -> int:
     crew_name = update.message.text
     context.user_data["crew_name"] = crew_name
-    await update.message.reply_text(
-        "Great! Now, please share the location of the crew"
-        " (e.g., address or coordinates)."
-    )
+    msg = (f"Crew name: {crew_name}\n"
+           "Great! Now, please share the location of the crew"
+           " (e.g., address or coordinates).")
+
+    await update.message.reply_text(msg)
     return CREW_LOCATION
 
 
@@ -282,7 +285,7 @@ async def receive_crew_location(update: Update,
     crew_location = update.message.text
     context.user_data["crew_location"] = crew_location
     await update.message.reply_text(
-        f"{crew_location=}"
+        f"Location: {crew_location=}\n"
         "Awesome! Lastly, please specify the capacity of the crew."
     )
     return CREW_CAPACITY
@@ -313,6 +316,7 @@ async def receive_crew_capacity(update: Update,
         reply_message + "What would you like to do?",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True),
     )
+    # TODO: Inlinekeyboard, SAVE, EDIT, CANCEL
     return SELECT_ACTION
 
 
