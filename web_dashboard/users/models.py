@@ -38,6 +38,16 @@ class CustomUser(AbstractUser):
         }
     )
 
+    telegram_id = models.CharField(
+        _('Telegram ID'),
+        error_messages={
+            "unique": _("User with such telegram id already exist."),
+        },
+        unique=True,
+        blank=True,
+        null=True,
+    )
+
     has_car = models.BooleanField(
         _('Has car'),
         default=False,
