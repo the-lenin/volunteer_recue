@@ -89,8 +89,8 @@ def setup_logging_config(DEBUG: bool = False):
         "loggers": {
             "": {
                 "handlers": {
-                    "INFO": ["stdout_color"],
-                    "DEBUG": ["stdout", "file"],
+                    "INFO": ["stdout", "file"],
+                    "DEBUG": ["stdout_color"],
                 }.get(LEVEL, "INFO"),
                 "level": LEVEL,
             },
