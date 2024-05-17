@@ -38,7 +38,7 @@ class CustomUser(AbstractUser):
         }
     )
 
-    telegram_id = models.CharField(
+    telegram_id = models.BigIntegerField(
         _('Telegram ID'),
         error_messages={
             "unique": _("User with such telegram id already exist."),
