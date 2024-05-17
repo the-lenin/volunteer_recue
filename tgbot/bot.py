@@ -30,7 +30,7 @@ from web_dashboard.users.models import CustomUser  # noqa: E402
 setup_logging_config(settings.DEBUG)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-logger.info(settings.DEBUG)
+logger.info(f'Start logging: {logger.getEffectiveLevel()}')
 
 (
     SHOWING,
@@ -86,7 +86,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ['/cancel']
         ]
 
-        keyboard = ReplyKeyboardMarkup(buttons)
+        keyboard = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
         await context.bot.send_message(text=msg,
                                        chat_id=update.effective_chat.id,
                                        reply_markup=keyboard)
