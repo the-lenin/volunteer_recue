@@ -25,8 +25,9 @@ from . import views
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
+    path('account/', include('web_dashboard.users.urls')),
     path('', include('web_dashboard.custom_auth.urls')),
-    path(f'{settings.WEBHOOK_URL}/', include('web_dashboard.bot_api.urls')),
+    # path(f'{settings.WEBHOOK_URL}/', include('web_dashboard.bot_api.urls')),
     path('requests/', include('web_dashboard.search_requests.urls')),
     path('logistics/', include('web_dashboard.logistics.urls')),
     path('admin/', admin.site.urls),
