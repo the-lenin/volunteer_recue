@@ -50,12 +50,13 @@ logger.info(f'Start logging: {logger.getEffectiveLevel()}')
     CREW_NAME,
     CREW_LOCATION,
     CREW_CAPACITY,
+    CREW_DEPARTURE_TIME,
     CREW_SELECT_ACTION,
 
     SELECT,
     BACK,
     START_OVER,
-) = map(chr, range(17))
+) = map(chr, range(18))
 
 END = ConversationHandler.END
 
@@ -376,19 +377,38 @@ async def receive_crew_location(update: Update,
 async def receive_crew_capacity(update: Update,
                                 context: ContextTypes.DEFAULT_TYPE) -> int:
     """
+    Display crew capacity and request to enter a crew capacity.
+    """
+    crew_capacity = update.message.text
+    context.user_data['crew_capacity'] = crew_capacity
+    await update.message.reply_text(
+        f"Pasangers: {crew_capacity=}\n"
+        "Finally! Set up departure time:"
+    )
+    return CREW_DEPARTURE_TIME
+
+
+async def receive_crew_departure_time(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
     Display entered summary and next action buttons.
     """
     departure = context.user_data["departure"]
     crew_name = context.user_data["crew_name"]
     crew_location = context.user_data["crew_location"]
-    crew_capacity = update.message.text
-    context.user_data['crew_capacity'] = crew_capacity
+    crew_capacity = context.user_data['crew_capacity']
+    crew_departure_time = update.message.text
+    context.user_data['crew_departure_time'] = crew_departure_time
 
     msg = (
         f"Departure {departure}\n"
         f"Crew '{crew_name}' created successfully!\n"
         f"Location: {crew_location}\n"
-        f"Capacity: {crew_capacity}\n\n"
+        f"Capacity: {crew_capacity}\n"
+        f"Deparure time: {crew_departure_time}\n\n"
+
         "Please select the next action."
     )
 
@@ -438,6 +458,8 @@ async def crew_select_action(update: Update,
                     driver=user.id,
                     phone_number=user.phone_number,
                     status=Crew.StatusVerbose.OPEN,
+                    # TODO: where to keep departure_time?
+                    # departure_time=context.user_data["crew_departure_time"]
                 )
 
                 msg = "Crew is created."
@@ -492,6 +514,9 @@ def main() -> None:
                                            receive_crew_location)],
             CREW_CAPACITY: [MessageHandler(filters.TEXT & ~filters.COMMAND,
                                            receive_crew_capacity)],
+            CREW_DEPARTURE_TIME: [MessageHandler(
+                filters.TEXT & ~filters.COMMAND, receive_crew_departure_time
+            )],
             CREW_SELECT_ACTION: [CallbackQueryHandler(crew_select_action)],
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
