@@ -1,0 +1,23 @@
+{% extends 'base_logged.html' %}
+{% load django_bootstrap5 i18n crispy_forms_tags %}
+
+{% block script_head %}
+		<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+		{{ form.media }}
+{% endblock %}
+
+{% block content %}
+	<div><a href="{% url 'index' %}">{% trans 'Back' %}</a></div>
+	<div>
+		<form action="" method="POST" enctype="multipart/form-data">
+			{% csrf_token %}
+			<table class="table">
+				{{ form|crispy }}
+			</table>
+			<input class="btn btn-outline-success" type="submit" value="{% trans 'Save' %}">
+			<a class="btn btn-outline-warning"  href="{% url 'index' %}">{% trans 'Cancel' %}</a>
+			<a class='btn btn-outline-danger' href="{% url 'account:delete' %}">{% trans 'Delete' %}</a>
+
+		</form>
+	</div>
+{% endblock %}

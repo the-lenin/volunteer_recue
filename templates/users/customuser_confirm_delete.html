@@ -1,0 +1,13 @@
+{% extends 'base_logged.html' %}
+{% load django_bootstrap5 i18n %}
+
+{% block content %}
+	<div><a href="{% url 'account:update' %}">{% trans 'Back' %}</a></div>
+	<h1>{% trans 'Deletion' %}</h1>
+	<div>{% trans 'Are you sure you want to delete' %}: <b class="text-danger">{{ object }}</b>?</div>
+	<form action="" method="POST">
+			{% csrf_token %}
+			{{ form }}
+			<input type="submit" value="{% trans 'Confirm' %}">
+	</form>
+{% endblock %}
