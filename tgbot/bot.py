@@ -441,8 +441,9 @@ async def crew_select_action(update: Update,
                 )
 
                 msg = "Crew is created."
-            except Exception:  # TODO: Specify error
+            except Exception as e:  # TODO: Specify error
                 msg = "Unexpected error. Crew is NOT created."""
+                logger.warning(e)
             await context.bot.send_message(chat_id=update.effective_chat.id,
                                            text=msg)
             return END
