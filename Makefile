@@ -93,4 +93,4 @@ sleep:
 	sleep 3 
 
 bot-start:
-	DJANGO_SETTINGS_MODULE=$(STARTAPP_NAME).settings poetry run python telegram_bot/bot.py
+	DJANGO_SETTINGS_MODULE=$(STARTAPP_NAME).settings poetry run python tgbot/bot.py
