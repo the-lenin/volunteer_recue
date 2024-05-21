@@ -1,8 +1,9 @@
 import os
 import logging
 import django
-from tgbot.logging_config import setup_logging_config
+from dateutil.parser import parse
 from asgiref.sync import sync_to_async
+from tgbot.logging_config import setup_logging_config
 
 from telegram import (
     Update,
@@ -22,6 +23,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
 
 from django.conf import settings  # noqa: E402
+from django.db.models import Q  # noqa: E402
 
 from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
@@ -261,8 +263,8 @@ async def list_departures(update: Update,
             )
         ])
 
-    # TODO: If the pagination required, keyboard / index will be remembered
-    context.user_data['departures'] = list(zip(departures, keyboard))
+    context.user_data['departures'] = departures
+    context.user_data['dep_keyboards'] = keyboard
 
     await query.edit_message_text(
         f"Total number of departures: {len(departures)}\n"
@@ -279,10 +281,10 @@ async def display_departure(update: Update,
     await query.answer()
 
     index = int(query.data)
-    departure = context.user_data['departures'][index]
+    dep = context.user_data['departures'][index]
+    context.user_data['departure'] = dep
 
     # Display detailed information about the selected departure with buttons
-    dep = departure[0]
     tasks = '\n'.join([
         f'* {task.title} - {task.coordinates.coords}:\n{task.description}'
         async for task in dep.tasks.all()
@@ -300,11 +302,11 @@ PSN: {dep.search_request.location.coords}
 
 Tasks ({await dep.tasks.acount()}):
 {tasks}
-
-raw json:\n{dep.__dict__}\n
-raw search_request:\n{dep.search_request.__dict__}\n
-raw tasks:\n{dep.tasks.__dict__}
         """
+        # raw json:\n{dep.__dict__}\n
+        # raw search_request:\n{dep.search_request.__dict__}\n
+        # raw tasks:\n{dep.tasks.__dict__}
+        #         """
     )
 
     buttons = [
@@ -318,7 +320,6 @@ raw tasks:\n{dep.tasks.__dict__}
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
 
-    context.user_data['departure'] = {'pk': dep.pk, 'index': index}
     return SELECT_DEPARTURE_ACTION
 
 
@@ -331,11 +332,11 @@ async def receive_departure(update: Update,
     await query.answer()
     await query.delete_message()
 
-    pk, ind = context.user_data["departure"].values()
+    dep = context.user_data["departure"]
     msg = (
             "You selected Departure:\n"
-            f'{ind}: ID {pk}\n'
-            f'{context.user_data["departures"][ind]}\n\n'
+            f'ID {dep.pk}\n'
+            f'{dep}\n\n'
 
             "Please enter the name of the crew:"
     )
@@ -377,18 +378,19 @@ async def receive_crew_location(update: Update,
 async def receive_crew_capacity(update: Update,
                                 context: ContextTypes.DEFAULT_TYPE) -> int:
     """
-    Display crew capacity and request to enter a crew capacity.
+    Display crew capacity and request to enter a crew departure datetime.
     """
     crew_capacity = update.message.text
     context.user_data['crew_capacity'] = crew_capacity
     await update.message.reply_text(
         f"Pasangers: {crew_capacity=}\n"
-        "Finally! Set up departure time:"
+        "Finally! Set up departure date & time & tz:"
+        # TODO: Display available formats
     )
     return CREW_DEPARTURE_TIME
 
 
-async def receive_crew_departure_time(
+async def receive_crew_departure_datetime(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
@@ -399,15 +401,15 @@ async def receive_crew_departure_time(
     crew_name = context.user_data["crew_name"]
     crew_location = context.user_data["crew_location"]
     crew_capacity = context.user_data['crew_capacity']
-    crew_departure_time = update.message.text
-    context.user_data['crew_departure_time'] = crew_departure_time
+    crew_departure_datetime = update.message.text
+    context.user_data['crew_departure_datetime'] = crew_departure_datetime
 
     msg = (
         f"Departure {departure}\n"
         f"Crew '{crew_name}' created successfully!\n"
         f"Location: {crew_location}\n"
         f"Capacity: {crew_capacity}\n"
-        f"Deparure time: {crew_departure_time}\n\n"
+        f"Deparure datetime: {crew_departure_datetime}\n\n"
 
         "Please select the next action."
     )
@@ -434,19 +436,22 @@ async def crew_select_action(update: Update,
     answer = query.data
     user_id = query.from_user.id
 
-    query.delete_message()
+    departure_datetime = parse(context.user_data["crew_departure_datetime"])
+
+    await query.delete_message()
 
     global SELECT, BACK, END
 
     try:
-        user = await CustomUser.objects.aget(telegram_id=user_id)
-        # TODO: Is user driver? has_car=True
-    except Exception as e:
-        msg = 'You are not found in database. Please contact Operator.\n'\
-                + str(e)
+        user = await CustomUser.objects.aget(
+            Q(telegram_id=user_id) & Q(has_car=True)
+        )
+    except CustomUser.DoesNotExist:
+        msg = "You are not found in database or don't have a car."\
+              "Please update your profile or contact Operator."
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text=msg)
-    finally:
+        logging.warning(f'TG_id={user_id}, User is not found in DB.')
         return END
 
     match answer:
@@ -455,25 +460,30 @@ async def crew_select_action(update: Update,
                 await Crew.objects.acreate(
                     departure=context.user_data["departure"],
                     title=context.user_data["crew_name"],
-                    driver=user.id,
+                    driver=user,
                     phone_number=user.phone_number,
-                    status=Crew.StatusVerbose.OPEN,
-                    # TODO: where to keep departure_time?
-                    # departure_time=context.user_data["crew_departure_time"]
+                    status=Crew.StatusVerbose.AVAILABLE,
+                    departure_datetime=departure_datetime
                 )
 
                 msg = "Crew is created."
-            except Exception as e:  # TODO: Specify error
+
+            except Exception as e:
                 msg = "Unexpected error. Crew is NOT created."""
                 logger.warning(e)
+
             await context.bot.send_message(chat_id=update.effective_chat.id,
                                            text=msg)
             return END
+
         case str(BACK):
             return SHOWING
+
         case str(END):
             return END
-    pass
+
+        case _:
+            return END
 
 
 async def stop_nested(update: Update,
@@ -515,11 +525,15 @@ def main() -> None:
             CREW_CAPACITY: [MessageHandler(filters.TEXT & ~filters.COMMAND,
                                            receive_crew_capacity)],
             CREW_DEPARTURE_TIME: [MessageHandler(
-                filters.TEXT & ~filters.COMMAND, receive_crew_departure_time
+                filters.TEXT & ~filters.COMMAND,
+                receive_crew_departure_datetime
             )],
             CREW_SELECT_ACTION: [CallbackQueryHandler(crew_select_action)],
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
+        map_to_parent={
+            STOPPING: STOPPING
+        },
     )
 
     departure_selction_handlers = [
