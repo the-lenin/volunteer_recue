@@ -103,10 +103,16 @@ class Crew(GetFieldsMixin, models.Model):
     driver = models.ForeignKey(
         CustomUser,
         verbose_name=_('Driver'),
-        on_delete=models.CASCADE
+        related_name='crews',
+        on_delete=models.CASCADE,
     )
 
-    # members = models.ManyToOneRel
+    passengers = models.ManyToManyField(
+        CustomUser,
+        verbose_name=_('Passangers'),
+        related_name='passenger_crews',
+        blank=True,
+    )
 
     created_at = models.DateTimeField(
         _('Created at'),
@@ -120,7 +126,8 @@ class Crew(GetFieldsMixin, models.Model):
 
     def __str__(self) -> str:
         """Representation of a single instance."""
-        return f'ID {self.id} ({self.get_status_display()}): {self.title}'
+        return f'{self.title}-{self.id} ({self.get_status_display()}): '\
+               f'{self.passengers.count()} p.'
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
