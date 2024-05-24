@@ -1,6 +1,7 @@
 import os
 import logging
 import django
+import datetime
 from dateutil.parser import parse
 from asgiref.sync import sync_to_async
 from tgbot.logging_config import setup_logging_config
@@ -28,6 +29,7 @@ from django.db.models import Q  # noqa: E402
 from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
 from web_dashboard.users.models import CustomUser  # noqa: E402
+from web_dashboard.bot_api.models import TelegramUser  # noqa E402
 
 setup_logging_config(settings.DEBUG)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -77,6 +79,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg = "I'm a Volunteer Rescue Bot!"
 
     user_id = update.effective_user.id
+
+    await TelegramUser.objects.aupdate_or_create(
+        user_id=user_id,
+        last_action=datetime.datetime.now(datetime.UTC)
+    )
 
     global allowed_users
     if user_id not in allowed_users:
@@ -136,7 +143,26 @@ async def start_conversation(update: Update,
                              context: ContextTypes.DEFAULT_TYPE) -> int:
     """Welcoming a user at the joining."""
     query = update.callback_query
-    msg = "I'm a Volunteer Rescue Bot!\nWhat do you want to do?"
+
+    user_id = update.effective_user.id
+    user = await CustomUser.objects.aget(telegram_id=user_id)
+
+    crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+    user_crews = crews.filter(driver=user)
+
+    msg = f"Total number of crews: {await crews.acount()}"
+
+    if await user_crews.aexists():
+        lines = [
+            crew.departure_datetime.strftime('%H:%M - %d.%m.%Y')
+            + ": " + await sync_to_async(crew.__str__)()
+            async for crew in user_crews.order_by("departure_datetime")
+        ]
+
+        msg += f"\n\nYour crews: {await user_crews.acount()}\n"
+        msg += ('\n').join(lines)
+
+    msg += "\n\nI'm a Volunteer Rescue Bot!\nWhat do you want to do?"
 
     buttons = [
         [
@@ -172,12 +198,17 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ).acount()
 
     departures = await Departure.objects.filter(
-            status=Departure.StatusVerbose.OPEN
+        status=Departure.StatusVerbose.OPEN
+    ).acount()
+
+    crews = await Crew.objects.filter(
+        status=Crew.StatusVerbose.AVAILABLE
     ).acount()
 
     msg = (
         f'\n\n{SearchRequest._meta.verbose_name_plural}: {search_requests}'
         f'\n{Departure._meta.verbose_name_plural}: {departures}'
+        f'\n{Crew._meta.verbose_name_plural}: {crews}'
     )
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Back", callback_data=str(END))],
