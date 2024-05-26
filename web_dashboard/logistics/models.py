@@ -1,9 +1,7 @@
 from django.db import models
-from django.core import serializers
+from django.contrib.gis.db.models import PointField
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from django.contrib.gis.geos import Point
-from phonenumber_field.modelfields import PhoneNumberField
 from location_field.models.spatial import LocationField
 
 from web_dashboard.users.models import CustomUser
@@ -61,6 +59,14 @@ class Crew(GetFieldsMixin, models.Model):
         on_delete=models.CASCADE,
     )
 
+    title = models.CharField(
+        _('Title'),
+        max_length=32,
+        help_text=_("Required 32 characters or fewer."),
+        blank=False,
+        null=False,
+    )
+
     class StatusVerbose(models.TextChoices):
         """Crew status choices."""
         AVAILABLE = 'A', _('Available')
@@ -74,6 +80,38 @@ class Crew(GetFieldsMixin, models.Model):
         default=StatusVerbose.AVAILABLE,
     )
 
+    driver = models.ForeignKey(
+        CustomUser,
+        verbose_name=_('Driver'),
+        related_name='crews',
+        on_delete=models.CASCADE,
+    )
+
+    passengers_max = models.IntegerField(
+        _('Max passengers'),
+        blank=False,
+        null=False,
+    )
+
+    passengers = models.ManyToManyField(
+        CustomUser,
+        verbose_name=_('Passengers'),
+        related_name='passenger_crews',
+        blank=True,
+    )
+
+    pickup_location = PointField(
+        _('Pickup location'),
+        blank=False,
+        null=False,
+    )
+
+    pickup_datetime = models.DateTimeField(
+        _('Pickup at'),
+        blank=False,
+        null=False,
+    )
+
     departure_datetime = models.DateTimeField(
         _('Departure at'),
         blank=True,
@@ -84,34 +122,6 @@ class Crew(GetFieldsMixin, models.Model):
         _('Return at'),
         blank=True,
         null=True,
-    )
-
-    title = models.CharField(
-        _('Title'),
-        max_length=32,
-        help_text=_("Required 32 characters or fewer."),
-        blank=False,
-        null=False,
-    )
-
-    phone_number = PhoneNumberField(
-        _('Phone number'),
-        blank=False,
-        null=False,
-    )
-
-    driver = models.ForeignKey(
-        CustomUser,
-        verbose_name=_('Driver'),
-        related_name='crews',
-        on_delete=models.CASCADE,
-    )
-
-    passengers = models.ManyToManyField(
-        CustomUser,
-        verbose_name=_('Passangers'),
-        related_name='passenger_crews',
-        blank=True,
     )
 
     created_at = models.DateTimeField(
