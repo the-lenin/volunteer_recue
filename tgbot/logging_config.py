@@ -69,7 +69,7 @@ def setup_logging_config(DEBUG: bool = False):
                 "class": "logging.StreamHandler",
                 "stream": "ext://sys.stdout",
                 "formatter": "colored",
-                "level": "INFO",
+                "level": "DEBUG",
             },
             "rotating_file": {
                 "class": "logging.handlers.RotatingFileHandler",
