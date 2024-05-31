@@ -2,9 +2,8 @@ import os
 import logging
 import django
 import datetime
-from dateutil.parser import parse
+# from dateutil.parser import parse
 from asgiref.sync import sync_to_async
-from tgbot.logging_config import setup_logging_config
 
 from telegram import (
     Update,
@@ -19,6 +18,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
 )
+
+from tgbot.logging_config import setup_logging_config
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
@@ -40,33 +41,38 @@ logging.getLogger("telegram").setLevel(logging.INFO)
 # logger.setLevel(logging.DEBUG)
 logger.info(f'Start logging: {logger.getEffectiveLevel()}')
 
-(
-    SHOWING,
-    SELECT_ACTION,
-    STOPPING,
 
-    INFO,
-    HELP,
+class ConversationStates:
+    (
+        SHOWING,
+        SELECT_ACTION,
+        STOPPING,
 
-    CREW_CREATION,
-    CREW_UPDATE,
+        INFO,
+        HELP,
 
-    LIST_ITEM,
-    DISPLAY_ITEM,
-    SELECT_ITEM_ACTION,
+        CREW_CREATION,
+        CREW_UPDATE,
 
-    CREW_TITLE,
-    CREW_LOCATION,
-    CREW_CAPACITY,
-    CREW_DEPARTURE_TIME,
-    CREW_SELECT_ACTION,
+        LIST_ITEM,
+        DISPLAY_ITEM,
+        SELECT_ITEM_ACTION,
 
-    SELECT,
-    BACK,
-    START_OVER,  # TODO: Is it really required???
-) = map(chr, range(18))
+        CREW_TITLE,
+        CREW_LOCATION,
+        CREW_CAPACITY,
+        CREW_DEPARTURE_TIME,
+        CREW_SELECT_ACTION,
 
-END = ConversationHandler.END
+        SELECT,
+        BACK,
+        START_OVER,  # TODO: Is it really required???
+    ) = map(chr, range(18))
+
+    END = ConversationHandler.END
+
+
+CS = ConversationStates
 
 
 def get_allowed_users() -> set:
@@ -179,14 +185,14 @@ async def start_conversation(update: Update,
 
     buttons = [
         [
-            InlineKeyboardButton('Info', callback_data=str(INFO)),
-            InlineKeyboardButton('Help', callback_data=str(HELP)),
+            InlineKeyboardButton('Info', callback_data=CS.INFO),
+            InlineKeyboardButton('Help', callback_data=CS.HELP),
         ],
         [
             InlineKeyboardButton('Create crew',
-                                 callback_data=str(CREW_CREATION)),
+                                 callback_data=CS.CREW_CREATION),
             InlineKeyboardButton('Update crew',
-                                 callback_data=str(CREW_UPDATE)),
+                                 callback_data=CS.CREW_UPDATE),
         ]
     ]
 
@@ -198,7 +204,7 @@ async def start_conversation(update: Update,
     else:
         await update.message.reply_text(msg, reply_markup=keyboard)
 
-    return SELECT_ACTION
+    return CS.SELECT_ACTION
 
 
 async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -223,13 +229,13 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f'\n{Crew._meta.verbose_name_plural}: {crews}'
     )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Back", callback_data=str(END))],
+        [InlineKeyboardButton("Back", callback_data=str(CS.END))],
     ])
 
     if query:
         await query.answer()
         await query.edit_message_text(msg, reply_markup=keyboard)
-        return SHOWING
+        return CS.SHOWING
     else:
         await update.message.reply_text(msg)
 
@@ -248,13 +254,13 @@ async def help_command(update: Update,
     )
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Back", callback_data=str(END))],
+        [InlineKeyboardButton("Back", callback_data=str(CS.END))],
     ])
 
     if query:
         await query.answer()
         await query.edit_message_text(msg, reply_markup=keyboard)
-        return SHOWING
+        return CS.SHOWING
     else:
         await update.message.reply_text(msg)
 
@@ -265,7 +271,7 @@ async def stop(update: Update,
     msg = "Canceled. Return back to /start_conversation."
     await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
     context.user_data.clear()
-    return END
+    return CS.END
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -289,7 +295,7 @@ async def list_departures(update: Update,
         await update.message.reply_text(
             "There are no available Departures, please try later."
         )
-        return END
+        return CS.END
 
     departures = [dep async for dep in departures]
     keyboard = []
@@ -312,7 +318,7 @@ async def list_departures(update: Update,
         "Let's create a crew! Please choose Departure.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    return DISPLAY_ITEM
+    return CS.DISPLAY_ITEM
 
 
 async def display_departure(update: Update,
@@ -352,16 +358,16 @@ Tasks ({await dep.tasks.acount()}):
 
     buttons = [
         [
-            InlineKeyboardButton("Select", callback_data=str(SELECT)),
-            InlineKeyboardButton("Back", callback_data=str(BACK)),
-            InlineKeyboardButton("Cancel", callback_data=str(END)),
+            InlineKeyboardButton("Select", callback_data=CS.SELECT),
+            InlineKeyboardButton("Back", callback_data=CS.BACK),
+            InlineKeyboardButton("Cancel", callback_data=str(CS.END)),
         ]
     ]
 
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
 
-    return SELECT_ITEM_ACTION
+    return CS.SELECT_ITEM_ACTION
 
 
 async def get_crew_keyboard(crew: Crew,
@@ -407,7 +413,7 @@ async def receive_departure(update: Update,
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg,
                                    reply_markup=keyboard)
-    return CREW_TITLE
+    return CS.CREW_TITLE
 
 
 async def receive_crew_title(update: Update,
@@ -426,7 +432,7 @@ async def receive_crew_title(update: Update,
 
     keyboard = await get_crew_keyboard(crew, 'pickup_location')
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CREW_LOCATION
+    return CS.CREW_LOCATION
 
 
 async def receive_crew_location(update: Update,
@@ -448,7 +454,7 @@ async def receive_crew_location(update: Update,
 
     keyboard = await get_crew_keyboard(crew, 'passengers_max')
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CREW_CAPACITY
+    return CS.CREW_CAPACITY
 
 
 async def receive_crew_capacity(update: Update,
@@ -467,7 +473,7 @@ async def receive_crew_capacity(update: Update,
 
     keyboard = await get_crew_keyboard(crew, 'pickup_datetime')
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CREW_DEPARTURE_TIME
+    return CS.CREW_DEPARTURE_TIME
 
 
 async def receive_crew_departure_datetime(
@@ -488,15 +494,15 @@ async def receive_crew_departure_datetime(
 
     buttons = [
         [
-            InlineKeyboardButton("Save", callback_data=str(SELECT)),
-            InlineKeyboardButton("Edit", callback_data=str(BACK)),
-            InlineKeyboardButton("Cancel", callback_data=str(END))
+            InlineKeyboardButton("Save", callback_data=CS.SELECT),
+            InlineKeyboardButton("Edit", callback_data=CS.BACK),
+            InlineKeyboardButton("Cancel", callback_data=str(CS.END))
         ],
     ]
 
     keyboard = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CREW_SELECT_ACTION
+    return CS.CREW_SELECT_ACTION
 
 
 async def crew_select_action(update: Update,
@@ -507,31 +513,32 @@ async def crew_select_action(update: Update,
 
     answer = query.data
     user_id = query.from_user.id
-    await query.delete_message()
 
-    global SELECT, BACK, END
-
-    try:
-        user = await CustomUser.objects.aget(
-            Q(telegram_id=user_id) & Q(has_car=True)
-        )
-    except CustomUser.DoesNotExist:
-        msg = "You are not found in database or don't have a car."\
-              "Please update your profile or contact Operator."
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text=msg)
-        logging.warning(f'TG_id={user_id}, User is not found in DB.')
-        return END
-
+    logger.debug(f'TG: {user_id}, answer: {answer}')
     match answer:
-        case str(SELECT):
+        case CS.SELECT:
+            await query.delete_message()
             try:
+                user = await CustomUser.objects.aget(
+                    Q(telegram_id=user_id) & Q(has_car=True)
+                )
 
                 crew = context.user_data["crew"]
                 crew.driver = user
                 crew.status = Crew.StatusVerbose.AVAILABLE
+
                 await crew.asave()
                 msg = "Crew is created."
+
+            except CustomUser.DoesNotExist:
+                msg = "You are not found in database or don't have a car."\
+                      "Please update your profile or contact Operator."
+
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id, text=msg
+                )
+                logging.warning(f'TG_id={user_id}, User is not found in DB.')
+                return CS.END
 
             except Exception as e:
                 msg = "Unexpected error. Crew is NOT created."""
@@ -539,25 +546,33 @@ async def crew_select_action(update: Update,
 
             await context.bot.send_message(chat_id=update.effective_chat.id,
                                            text=msg)
-            return END
+            context.user_data.clear()
+            return CS.STOPPING
 
-        case str(BACK):
-            return SHOWING
+        case CS.BACK:
+            return await receive_departure(update, context)
 
-        case str(END):
-            return END
+        case str(CS.END):
+            msg = 'Canceled'
+            await context.bot.send_message(chat_id=update.effective_chat.id,
+                                           text=msg)
+            return CS.STOPPING
 
         case _:
-            return END
+            return CS.END
 
 
 async def stop_nested(update: Update,
                       context: ContextTypes.DEFAULT_TYPE) -> int:
     """End nested conversation by command."""
+    # query = update.callback_query
+    # if query:
+    #     await query.answer()
+
     msg = "Canceled. Return back to /start_conversation."
     await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
     context.user_data.clear()
-    return STOPPING
+    return CS.STOPPING
 
 
 async def list_crews(update: Update,
@@ -572,7 +587,7 @@ async def list_crews(update: Update,
         await update.message.reply_text(
             "There are no available Crews to edit."
         )
-        return END
+        return CS.END
 
     buttons = [
         [InlineKeyboardButton(
@@ -590,7 +605,7 @@ async def list_crews(update: Update,
           "Please choose Crew to update:"
 
     await query.edit_message_text(msg, reply_markup=keyboard)
-    return DISPLAY_ITEM
+    return CS.DISPLAY_ITEM
 
 
 async def display_crew(update: Update,
@@ -645,16 +660,16 @@ Tasks ({await crew.departure.tasks.acount()}):
 
     buttons = [
         [
-            InlineKeyboardButton("Edit", callback_data=str(SELECT)),
-            InlineKeyboardButton("Back", callback_data=str(BACK)),
-            InlineKeyboardButton("Cancel", callback_data=str(END)),
+            InlineKeyboardButton("Edit", callback_data=CS.SELECT),
+            InlineKeyboardButton("Back", callback_data=CS.BACK),
+            InlineKeyboardButton("Cancel", callback_data=CS.END),
         ]
     ]
 
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
 
-    return SELECT_ITEM_ACTION
+    return CS.SELECT_ITEM_ACTION
 
 
 def main() -> None:
@@ -664,94 +679,92 @@ def main() -> None:
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     start_handler = CommandHandler('start', start)
     restart_handler = CommandHandler('restart', restart)
-    restrict_handler = MessageHandler(
-        ~ filter_users, restrict
-    )
+    restrict_handler = MessageHandler(~ filter_users, restrict)
 
     info_handler = CommandHandler('info', info)
     help_handler = CommandHandler('help', help_command)
 
     crew_action_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
-            receive_departure, pattern="^" + str(SELECT) + "$"
+            receive_departure, pattern=f"^{CS.SELECT}$"
         )],
 
         states={
-            SHOWING: [CallbackQueryHandler(receive_departure,
-                                           pattern="^" + str(BACK) + "$")],
+            CS.SHOWING: [CallbackQueryHandler(receive_departure,
+                                              pattern=f"^{CS.BACK}$")],
 
-            CREW_TITLE: [
+            CS.CREW_TITLE: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND, receive_crew_title
                 ),
             ],
-            CREW_LOCATION: [
+            CS.CREW_LOCATION: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND, receive_crew_location
                 ),
             ],
-            CREW_CAPACITY: [
+            CS.CREW_CAPACITY: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND, receive_crew_capacity
                 ),
             ],
-            CREW_DEPARTURE_TIME: [
+            CS.CREW_DEPARTURE_TIME: [
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
                     receive_crew_departure_datetime
                 ),
             ],
 
-            CREW_SELECT_ACTION: [CallbackQueryHandler(crew_select_action)],
+            CS.CREW_SELECT_ACTION: [CallbackQueryHandler(crew_select_action)],
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            STOPPING: STOPPING
+            CS.STOPPING: CS.STOPPING
         },
     )
 
     crew_selection_handlers = [
         crew_action_handler,
-        CallbackQueryHandler(list_departures, pattern=f"^{BACK}$"),
-        CallbackQueryHandler(stop_nested, pattern=f"^{END}$")
+        CallbackQueryHandler(list_departures, pattern=f"^{CS.BACK}$"),
+        CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
     ]
 
     crew_update_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
-            list_crews, pattern=f"^{CREW_UPDATE}$"
+            list_crews, pattern=f"^{CS.CREW_UPDATE}$"
         )],
 
         states={
-            DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
-            SELECT_ITEM_ACTION: crew_selection_handlers,
+            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
+            CS.SELECT_ITEM_ACTION: crew_selection_handlers,
         },
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            STOPPING: END
+            CS.STOPPING: CS.END
         },
     )
 
     crew_creation_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
-            list_departures, pattern=f"^{CREW_CREATION}$")],
+            list_departures, pattern=f"^{CS.CREW_CREATION}$")],
 
         states={
-            DISPLAY_ITEM: [CallbackQueryHandler(display_departure)],
-            SELECT_ITEM_ACTION: crew_selection_handlers,
+            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_departure)],
+            CS.SELECT_ITEM_ACTION: crew_selection_handlers,
         },
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            STOPPING: END
+            CS.STOPPING: CS.END
         },
     )
 
     selection_handlers = [
         crew_creation_handler,
         crew_update_handler,
-        CallbackQueryHandler(info, pattern="^" + str(INFO) + "$"),
-        CallbackQueryHandler(help_command, pattern="^" + str(HELP) + "$"),
+        CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
+        CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
     ]
 
     action_handler = ConversationHandler(
@@ -759,10 +772,10 @@ def main() -> None:
             CommandHandler("start_conversation", start_conversation)
         ],
         states={
-            SHOWING: [CallbackQueryHandler(start_conversation,
-                                           pattern="^" + str(END) + "$")],
-            SELECT_ACTION: selection_handlers,
-            STOPPING: [CommandHandler("stop", start_conversation)],
+            CS.SHOWING: [CallbackQueryHandler(start_conversation,
+                                              pattern=f"^{CS.END}$")],
+            CS.SELECT_ACTION: selection_handlers,
+            CS.STOPPING: [CommandHandler("stop", start_conversation)],
         },
         fallbacks=[CommandHandler("cancel", stop)],
     )
@@ -778,7 +791,7 @@ def main() -> None:
     # unknown_handler has to be the last one
     application.add_handler(unknown_handler)
 
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == '__main__':
