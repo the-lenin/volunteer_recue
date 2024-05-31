@@ -241,5 +241,5 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Django - Telegram Bot Token
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-DJANGO_TG_TOKEN = os.getenv("DJANGO_TG_TOKEN")
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+# DJANGO_TG_TOKEN = os.getenv("DJANGO_TG_TOKEN")
+# WEBHOOK_URL = os.getenv('WEBHOOK_URL')
