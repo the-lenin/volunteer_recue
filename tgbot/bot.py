@@ -8,7 +8,7 @@ from asgiref.sync import sync_to_async
 from telegram import (
     Update,
     ReplyKeyboardMarkup,
-    # ReplyKeyboardRemove,
+    ReplyKeyboardRemove,
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
@@ -88,6 +88,15 @@ allowed_users = get_allowed_users()
 filter_users = filters.User(user_id=allowed_users)
 
 
+async def get_keyboard_cancel() -> ReplyKeyboardMarkup:
+    """Return ReplyKeyboardMarkup with only /cancel button."""
+    buttons = [
+        ['/cancel']
+    ]
+
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Welcoming a user at the joining."""
     msg = "I'm a Volunteer Rescue Bot!"
@@ -107,14 +116,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                        chat_id=update.effective_chat.id)
     else:
         msg = '/start_conversation'
-        buttons = [
-            ['/cancel']
-        ]
-
-        keyboard = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
         await context.bot.send_message(text=msg,
                                        chat_id=update.effective_chat.id,
-                                       reply_markup=keyboard)
+                                       reply_markup=await get_keyboard_cancel())
 
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -370,7 +374,7 @@ Tasks ({await dep.tasks.acount()}):
     return CS.SELECT_ITEM_ACTION
 
 
-async def get_crew_keyboard(crew: Crew,
+async def get_keyboard_crew(crew: Crew,
                             field: str = None) -> ReplyKeyboardMarkup:
     """Return keyboard for crew creation/edit steps."""
     value = getattr(crew, field)
@@ -409,7 +413,7 @@ async def receive_departure(update: Update,
 
                 "Please enter the title of the crew:"
         )
-    keyboard = await get_crew_keyboard(crew, 'title')
+    keyboard = await get_keyboard_crew(crew, 'title')
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg,
                                    reply_markup=keyboard)
@@ -430,7 +434,7 @@ async def receive_crew_title(update: Update,
     if crew.pickup_location:
         msg += '\n' + crew.pickup_location
 
-    keyboard = await get_crew_keyboard(crew, 'pickup_location')
+    keyboard = await get_keyboard_crew(crew, 'pickup_location')
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_LOCATION
 
@@ -452,7 +456,7 @@ async def receive_crew_location(update: Update,
     if crew.passengers_max:
         msg += '\n' + str(crew.passengers_max)
 
-    keyboard = await get_crew_keyboard(crew, 'passengers_max')
+    keyboard = await get_keyboard_crew(crew, 'passengers_max')
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_CAPACITY
 
@@ -471,8 +475,10 @@ async def receive_crew_capacity(update: Update,
     if crew.pickup_datetime:
         msg += '\n' + get_formated_dtime(crew.pickup_datetime)
 
-    keyboard = await get_crew_keyboard(crew, 'pickup_datetime')
-    await update.message.reply_text(msg, reply_markup=keyboard)
+    keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
+    await update.message.reply_text(msg,
+                                    reply_markup=keyboard,
+                                    one_time_keyboard=True)
     return CS.CREW_DEPARTURE_TIME
 
 
@@ -505,72 +511,59 @@ async def receive_crew_departure_datetime(
     return CS.CREW_SELECT_ACTION
 
 
-async def crew_select_action(update: Update,
-                             context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Redirect to other action or validate crew creation."""
+async def crew_save_or_update(update: Update,
+                              context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Save or update crew instance."""
     query = update.callback_query
     await query.answer()
 
-    answer = query.data
     user_id = query.from_user.id
 
-    logger.debug(f'TG: {user_id}, answer: {answer}')
-    match answer:
-        case CS.SELECT:
-            await query.delete_message()
-            try:
-                user = await CustomUser.objects.aget(
-                    Q(telegram_id=user_id) & Q(has_car=True)
-                )
+    await query.delete_message()
+    try:
+        user = await CustomUser.objects.aget(
+            Q(telegram_id=user_id) & Q(has_car=True)
+        )
 
-                crew = context.user_data["crew"]
-                crew.driver = user
-                crew.status = Crew.StatusVerbose.AVAILABLE
+        crew = context.user_data["crew"]
+        crew.driver = user
+        crew.status = Crew.StatusVerbose.AVAILABLE
 
-                await crew.asave()
-                msg = "Crew is created."
+        await crew.asave()
+        msg = "Crew is created."
 
-            except CustomUser.DoesNotExist:
-                msg = "You are not found in database or don't have a car."\
-                      "Please update your profile or contact Operator."
+    except CustomUser.DoesNotExist:
+        msg = "You are not found in database or don't have a car."\
+              "Please update your profile or contact Operator."
 
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id, text=msg
-                )
-                logging.warning(f'TG_id={user_id}, User is not found in DB.')
-                return CS.END
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=msg
+        )
+        logging.warning(f'TG_id={user_id}, User is not found in DB.')
+        return CS.END
 
-            except Exception as e:
-                msg = "Unexpected error. Crew is NOT created."""
-                logger.warning(e)
+    except Exception as e:
+        msg = "Unexpected error. Crew is NOT created."""
+        logger.warning(e)
 
-            await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=msg)
-            context.user_data.clear()
-            return CS.STOPPING
-
-        case CS.BACK:
-            return await receive_departure(update, context)
-
-        case str(CS.END):
-            msg = 'Canceled'
-            await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=msg)
-            return CS.STOPPING
-
-        case _:
-            return CS.END
+    msg += '\nReturn back to /start_conversation.'
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg)
+    context.user_data.clear()
+    return CS.STOPPING
 
 
 async def stop_nested(update: Update,
                       context: ContextTypes.DEFAULT_TYPE) -> int:
     """End nested conversation by command."""
-    # query = update.callback_query
-    # if query:
-    #     await query.answer()
-
+    query = update.callback_query
+    if query:
+        await query.answer()
+        await query.delete_message()
     msg = "Canceled. Return back to /start_conversation."
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg,
+                                   reply_markup=await get_keyboard_cancel())
     context.user_data.clear()
     return CS.STOPPING
 
@@ -684,6 +677,14 @@ def main() -> None:
     info_handler = CommandHandler('info', info)
     help_handler = CommandHandler('help', help_command)
 
+    crew_completion_action = [
+            CallbackQueryHandler(
+                crew_save_or_update, pattern=f'^{CS.SELECT}$'
+            ),
+            CallbackQueryHandler(receive_departure, pattern=f'^{CS.BACK}$'),
+            CallbackQueryHandler(stop_nested, pattern=f'^{CS.END}$'),
+    ]
+
     crew_action_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
             receive_departure, pattern=f"^{CS.SELECT}$"
@@ -715,7 +716,7 @@ def main() -> None:
                 ),
             ],
 
-            CS.CREW_SELECT_ACTION: [CallbackQueryHandler(crew_select_action)],
+            CS.CREW_SELECT_ACTION: crew_completion_action,
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
@@ -723,9 +724,9 @@ def main() -> None:
         },
     )
 
-    crew_selection_handlers = [
+    crew_update_selection_handlers = [
         crew_action_handler,
-        CallbackQueryHandler(list_departures, pattern=f"^{CS.BACK}$"),
+        CallbackQueryHandler(list_crews, pattern=f"^{CS.BACK}$"),
         CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
     ]
 
@@ -736,7 +737,7 @@ def main() -> None:
 
         states={
             CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
-            CS.SELECT_ITEM_ACTION: crew_selection_handlers,
+            CS.SELECT_ITEM_ACTION: crew_update_selection_handlers,
         },
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
@@ -745,13 +746,19 @@ def main() -> None:
         },
     )
 
-    crew_creation_handler = ConversationHandler(
+    crew_create_selection_handlers = [
+        crew_action_handler,
+        CallbackQueryHandler(list_departures, pattern=f"^{CS.BACK}$"),
+        CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
+    ]
+
+    crew_create_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
             list_departures, pattern=f"^{CS.CREW_CREATION}$")],
 
         states={
             CS.DISPLAY_ITEM: [CallbackQueryHandler(display_departure)],
-            CS.SELECT_ITEM_ACTION: crew_selection_handlers,
+            CS.SELECT_ITEM_ACTION: crew_create_selection_handlers,
         },
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
@@ -761,7 +768,7 @@ def main() -> None:
     )
 
     selection_handlers = [
-        crew_creation_handler,
+        crew_create_handler,
         crew_update_handler,
         CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
         CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
