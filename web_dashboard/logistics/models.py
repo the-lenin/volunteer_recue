@@ -72,6 +72,7 @@ class Crew(GetFieldsMixin, models.Model):
         AVAILABLE = 'A', _('Available')
         ON_MISSION = 'M', _('On mission')
         RETURNING = 'R', _('Returning')
+        COMPLETED = 'C', _('Completed')
 
     status = models.CharField(
         _('status'),
