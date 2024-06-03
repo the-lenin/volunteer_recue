@@ -10,7 +10,8 @@ from telegram import (
     ReplyKeyboardMarkup,
     # ReplyKeyboardRemove,
     InlineKeyboardMarkup,
-    InlineKeyboardButton
+    InlineKeyboardButton,
+    error
 )
 
 from telegram.ext import (
@@ -486,6 +487,19 @@ async def receive_crew_capacity(update: Update,
     return CS.CREW_DEPARTURE_TIME
 
 
+async def get_crew_public_info(crew: Crew) -> str:
+    """Return public crew info."""
+    msg = f""" 
+Departure {crew.departure}
+
+Crew title: '{crew.title}'
+Max passengers: {crew.passengers_max}
+Pickup location: {crew.pickup_location.coords}
+Pickup datetime: {crew.pickup_datetime}
+    """
+    return msg
+
+
 async def receive_crew_departure_datetime(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -493,15 +507,8 @@ async def receive_crew_departure_datetime(
     """Display entered summary and next action buttons."""
     crew = context.user_data["crew"]
     crew.pickup_datetime = parse(update.message.text)
-    msg = (
-        f"Departure {crew.departure}\n\n"
-        f"Crew title: '{crew.title}'!\n"
-        f"Max passengers: {crew.passengers_max}\n"
-        f"Pickup Location: {crew.pickup_location.coords}\n"
-        f"Pickup datetime: {crew.pickup_datetime}\n\n"
-
-        "Please select the next action."
-    )
+    msg = await get_crew_public_info(crew)\
+        + '\n\nPlease select the next action.'
 
     buttons = [
         [
@@ -514,6 +521,24 @@ async def receive_crew_departure_datetime(
     keyboard = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_SELECT_ACTION
+
+
+async def make_broadcast(
+    context: ContextTypes,
+    message: str,
+    users: list[int] = allowed_users
+) -> None:
+    """Broadcast message to all allowed users."""
+    for user_id in allowed_users:
+        try:
+            await context.bot.send_message(chat_id=user_id, text=message)
+        except error.Forbidden:
+            logger.warning(f'User has blocked the bot. TG: {user_id}')
+        except Exception as e:
+            logger.warning(
+                "Unexpected error. User doesn't receive broadcast msg. "
+                f'TG: {user_id}, Error: {e}'
+            )
 
 
 async def crew_save_or_update(update: Update,
@@ -536,6 +561,9 @@ async def crew_save_or_update(update: Update,
 
         await crew.asave()
         msg = "Crew is created."
+        broadcast_msg = 'Crew is available.\n\n'\
+            + await get_crew_public_info(crew)
+        await make_broadcast(update, context, broadcast_msg)
 
     except CustomUser.DoesNotExist:
         msg = "You are not found in database or don't have a car."\
@@ -544,7 +572,7 @@ async def crew_save_or_update(update: Update,
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text=msg
         )
-        logging.warning(f'TG_id={user_id}, User is not found in DB.')
+        logging.warning(f'TG_id={user_id=}, User is not found in DB.')
         return CS.END
 
     except Exception as e:
@@ -787,7 +815,8 @@ def main() -> None:
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            CS.STOPPING: CS.STOPPING
+            CS.STOPPING: CS.STOPPING,
+            CS.SHOWING: CS.SHOWING
         },
     )
 
@@ -813,7 +842,8 @@ def main() -> None:
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            CS.STOPPING: CS.END
+            CS.STOPPING: CS.END,
+            CS.SHOWING: CS.SHOWING
         },
     )
 
@@ -832,7 +862,8 @@ def main() -> None:
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            CS.STOPPING: CS.END
+            CS.STOPPING: CS.END,
+            CS.SHOWING: CS.SHOWING
         },
     )
 
