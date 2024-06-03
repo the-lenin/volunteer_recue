@@ -67,8 +67,10 @@ class ConversationStates:
 
         SELECT,
         BACK,
-        DELETE,  # TODO: Is it really required???
-    ) = map(chr, range(18))
+
+        DELETE,
+        DEPART,
+    ) = map(chr, range(19))
 
     END = ConversationHandler.END
 
@@ -541,8 +543,10 @@ async def make_broadcast(
             )
 
 
-async def crew_save_or_update(update: Update,
-                              context: ContextTypes.DEFAULT_TYPE) -> int:
+async def crew_save_or_update(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Save or update crew instance."""
     query = update.callback_query
     await query.answer()
@@ -702,6 +706,9 @@ Tasks ({await crew.departure.tasks.acount()}):
 
     buttons = [
         [
+            InlineKeyboardButton("Depart", callback_data=CS.DEPART),
+        ],
+        [
             InlineKeyboardButton("Delete", callback_data=CS.DELETE),
         ],
         [
@@ -753,6 +760,34 @@ async def crew_delete(update: Update,
                        f'TG: {query.from_user.id}, Crew: {pk},\n{e=}')
 
     msg = f"Deleted crew: {pk}"
+    buttons = [
+        [
+            InlineKeyboardButton("Back", callback_data=CS.BACK),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.SELECT_ITEM_ACTION
+
+
+async def crew_depart(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Switch crew instance status and make notification."""
+    query = update.callback_query
+    await query.answer()
+    crew = context.user_data['crew']
+    try:
+        crew.status = Crew.StatusVerbose.ON_MISSION
+        crew.departure_datetime = datetime.datetime.now(datetime.timezone.UTC)
+        await crew.asave()
+    except Exception as e:  # TODO: specify deletion error
+        logger.warning("Can't change crew status to ON_MISSION"
+                       f'TG: {query.from_user.id}, Crew: {crew.pk}, {e=}')
+
+    msg = f"Crew {crew.title}-{crew.pk} departured"
     buttons = [
         [
             InlineKeyboardButton("Back", callback_data=CS.BACK),
@@ -831,6 +866,9 @@ def main() -> None:
                 crew_action_handler,
                 CallbackQueryHandler(crew_delete_confirmation,
                                      pattern=f"^{CS.DELETE}$"),
+
+                CallbackQueryHandler(crew_depart,
+                                     pattern=f"^{CS.DEPART}$"),
                 CallbackQueryHandler(list_crews, pattern=f"^{CS.BACK}$"),
                 CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
             ],
