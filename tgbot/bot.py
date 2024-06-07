@@ -338,7 +338,7 @@ Please select what you want to change:
             "Time zone", callback_data=CS.CHANGE_TZ
         )],
         [InlineKeyboardButton(
-            "Back", callback_data=str(CS.END)
+            "Back", callback_data=CS.SHOWING
         )],
     ])
 
@@ -884,7 +884,9 @@ async def change_tz(
 
     user = context.user_data['user']
 
-    msg = "Please enter your current Time Zone realtive to UTC\n"\
+    msg = 'You current TZ: '\
+        f'{TZOffsetHandler.represent_tz_offset(user.timezone)}\n'\
+        "Please enter your current Time Zone realtive to UTC\n"\
         "Format: ±HH:MM"
 
     buttons = [['Back'], ['/cancel']]
@@ -903,23 +905,22 @@ async def receive_user_tz(
     user = context.user_data["user"]
     tz = update.message.text
     try:
-        # Parse & save
-        msg = ''
-        pass
+        user.timezone = TZOffsetHandler.normalize_tz_offset(tz)
+        await user.asave()
     except Exception as e:
         logger.warning(f'TG: {update.from_user.id}, {e}')
         msg = 'Please type correct Time Zone format.'
 
-        buttons = [['Back'], ['/cancel']]
-        keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
+    msg = f"Timezone is updated: {tz}"
+    buttons = [
+        [
+            InlineKeyboardButton("Back", callback_data=CS.SETTINGS),
+        ]
+    ]
 
-        await update.message.reply_text(msg, reply_markup=keyboard)
-        return CS.CHANGE_TZ 
-
-
-    keyboard = await get_keyboard_crew(crew, 'pickup_location')
+    keyboard = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CS.CREW_LOCATION
+    return CS.SELECT_ACTION
 
 
 async def change_language(
@@ -1091,6 +1092,9 @@ def main() -> None:
                 ),
                 CallbackQueryHandler(
                     change_language, pattern=f"^{CS.CHANGE_LANGUAGE}"
+                ),
+                CallbackQueryHandler(
+                    start_conversation, pattern=f"^{CS.SHOWING}"
                 ),
             ],
             CS.CHANGE_TZ: [
