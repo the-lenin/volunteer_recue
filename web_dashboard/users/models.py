@@ -84,6 +84,11 @@ class CustomUser(AbstractUser):
         help_text=_('Specific permissions for this user.'),
     )
 
+    timezone = models.SmallIntegerField(
+        _('Time zone'),
+        default=300,
+    )
+
     REQUIRED_FIELDS = [
         'first_name',
         'last_name',
