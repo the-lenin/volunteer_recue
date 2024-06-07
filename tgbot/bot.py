@@ -1,7 +1,7 @@
 import os
 import logging
 import django
-import datetime
+import datetime as dt
 from dateutil.parser import parse
 from asgiref.sync import sync_to_async
 
@@ -40,6 +40,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 setup_logging_config(settings.DEBUG)
 logging.getLogger("httpcore").setLevel(logging.INFO)
 logging.getLogger("telegram").setLevel(logging.INFO)
+logging.getLogger("pudb").setLevel(logging.WARNING)
 # logger.setLevel(logging.DEBUG)
 logger.info(f'Start logging: {logger.getEffectiveLevel()}')
 
@@ -89,7 +90,7 @@ def get_allowed_users() -> set:
     return set(CustomUser.objects.values_list('telegram_id', flat=True))
 
 
-def get_formated_dtime(dtime: datetime.datetime) -> str:
+def get_formated_dtime(dtime: dt.datetime) -> str:
     return dtime.strftime('%H:%M - %d.%m.%Y')
 
 
@@ -109,11 +110,13 @@ async def get_keyboard_cancel() -> ReplyKeyboardMarkup:
 async def get_user(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    fields: set[str] = {'id', 'telegram_id'}
+    extra_fields: set[str] = set()
 ) -> CustomUser:
     """Return user instance and record it to context if not present."""
+    fields = {'id', 'telegram_id', 'timezone'}.union(extra_fields)
+
     try:
-        user = context.user_data['crew']
+        user = context.user_data['user']
     except KeyError:
         user_id = update.effective_user.id
 
@@ -131,7 +134,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # TODO: something is wrong with update
     await TelegramUser.objects.aupdate_or_create(
         user_id=user_id,
-        last_action=datetime.datetime.now(datetime.UTC)
+        last_action=dt.datetime.now(dt.UTC)
     )
 
     global allowed_users
@@ -456,8 +459,8 @@ async def get_keyboard_crew(crew: Crew,
                             field: str = None) -> ReplyKeyboardMarkup:
     """Return keyboard for crew creation/edit steps."""
     value = getattr(crew, field)
-    if isinstance(value, datetime.datetime):
-        value = f'{value}'
+    if isinstance(value, dt.datetime):
+        value = f'{value.isoformat()}'
     elif isinstance(value, Point):
         value = f"{value.x}, {value.y}"
 
@@ -550,12 +553,13 @@ async def receive_crew_capacity(update: Update,
     """
     crew = context.user_data["crew"]
     crew.passengers_max = update.message.text
+    user = await get_user(update, context)
     msg = f"Max passengers: {crew.passengers_max}\n\n"\
-        "Finally! Set up pickup date, time & tz:"
+        "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
 
     # TODO: Display available formats
     if crew.pickup_datetime:
-        msg += f'\n{crew.pickup_datetime}'
+        msg += f'\n{user.get_local_dt(crew.pickup_datetime)}'
 
     keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
     await update.message.reply_text(msg, reply_markup=keyboard)
@@ -575,13 +579,19 @@ Pickup datetime: {crew.pickup_datetime}
     return msg
 
 
-async def receive_crew_departure_datetime(
+async def receive_crew_pickup_dt(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     """Display entered summary and next action buttons."""
     crew = context.user_data["crew"]
-    crew.pickup_datetime = parse(update.message.text)
+    user = await get_user(update, context)
+    pickup_dt = parse(update.message.text).replace(tzinfo=user.tz)
+
+    # if not getattr(pickup_dt, 'tzinfo') or not pickup_dt.tzinfo == user.tz:
+    # pickup_dt = pickup_dt
+    crew.pickup_datetime = pickup_dt
+
     msg = await get_crew_public_info(crew)\
         + '\n\nPlease select the next action.'
 
@@ -640,7 +650,7 @@ async def crew_save_or_update(
         msg = "Crew is created."
         broadcast_msg = 'Crew is available.\n\n'\
             + await get_crew_public_info(crew)
-        await make_broadcast(update, context, broadcast_msg)
+        await make_broadcast(context, broadcast_msg)
 
     except CustomUser.DoesNotExist:
         msg = "You are not found in database or don't have a car."\
@@ -852,9 +862,10 @@ async def crew_depart(
     query = update.callback_query
     await query.answer()
     crew = context.user_data['crew']
+    user = await get_user(update, context)
     try:
         crew.status = Crew.StatusVerbose.ON_MISSION
-        crew.departure_datetime = datetime.datetime.now(datetime.timezone.UTC)
+        crew.departure_datetime = dt.datetime.now(tz=user.tz)
         await crew.asave()
         # TODO: log event
     except Exception as e:  # TODO: specify deletion error
@@ -996,7 +1007,7 @@ def main() -> None:
             ],
             CS.CREW_DEPARTURE_TIME: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               receive_crew_departure_datetime),
+                               receive_crew_pickup_dt),
             ],
 
             CS.CREW_SELECT_ACTION: [
