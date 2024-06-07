@@ -32,7 +32,6 @@ from django.contrib.gis.geos import Point  # noqa: E402
 from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
 from web_dashboard.users.models import CustomUser  # noqa: E402
-from web_dashboard.users.forms import TimeZoneOffsetField  # noqa: E402
 from web_dashboard.bot_api.models import TelegramUser  # noqa E402
 
 logger = logging.getLogger(__name__)
