@@ -51,6 +51,11 @@ class ConversationStates:
 
         INFO,
         HELP,
+        SETTINGS,
+
+        CHANGE_CAR_STATUS,
+        CHANGE_LANGUAGE,
+        CHANGE_TZ,
 
         CREW_CREATION,
         CREW_UPDATE,
@@ -70,7 +75,7 @@ class ConversationStates:
 
         DELETE,
         DEPART,
-    ) = map(chr, range(19))
+    ) = map(chr, range(23))
 
     END = ConversationHandler.END
 
@@ -98,6 +103,22 @@ async def get_keyboard_cancel() -> ReplyKeyboardMarkup:
     ]
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+
+async def get_user(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    fields: set[str] = {'id', 'telegram_id'}
+) -> CustomUser:
+    """Return user instance and record it to context if not present."""
+    try:
+        user = context.user_data['crew']
+    except KeyError:
+        user_id = update.effective_user.id
+
+        user = await CustomUser.objects.only(*fields).aget(telegram_id=user_id)
+        context.user_data['user'] = user
+    return user
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -168,10 +189,7 @@ async def start_conversation(update: Update,
     """Welcoming a user at the joining."""
     query = update.callback_query
 
-    user_id = update.effective_user.id
-    user = await CustomUser.objects.only('id').aget(telegram_id=user_id)
-    context.user_data['user'] = user
-
+    user = await get_user(update, context)
     crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
     user_crews = crews.filter(driver=user)
     context.user_data['user_crews'] = user_crews
@@ -196,6 +214,9 @@ async def start_conversation(update: Update,
         [
             InlineKeyboardButton('Info', callback_data=CS.INFO),
             InlineKeyboardButton('Help', callback_data=CS.HELP),
+        ],
+        [
+            InlineKeyboardButton('Settings', callback_data=CS.SETTINGS),
         ],
         [
             InlineKeyboardButton('Create crew',
@@ -272,6 +293,57 @@ async def help_command(update: Update,
         return CS.SHOWING
     else:
         await update.message.reply_text(msg)
+
+
+async def settings_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display settings menu."""
+    query = update.callback_query
+    await query.answer()
+    user = await get_user(
+        update,
+        context,
+        {
+            'first_name',
+            'last_name',
+            'patronymic_name',
+            'has_car',
+            'telegram_id',
+            'timezone',
+        }
+    )
+
+    # TODO: Feature to display language
+    # TZ for a user
+    msg = f"""
+Full name: {user.full_name}
+Car: {'Yes' if user.has_car else 'No'}
+Language:
+Time zone:
+
+Please select what you want to change:
+    """
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            "Car status", callback_data=CS.CHANGE_CAR_STATUS
+        )],
+        [InlineKeyboardButton(
+            "Language", callback_data=CS.CHANGE_LANGUAGE
+        )],
+        [InlineKeyboardButton(
+            "Time zone", callback_data=CS.CHANGE_TZ
+        )],
+        [InlineKeyboardButton(
+            "Back", callback_data=str(CS.END)
+        )],
+    ])
+
+    await query.answer()
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.SETTINGS
 
 
 async def stop(update: Update,
@@ -491,7 +563,7 @@ async def receive_crew_capacity(update: Update,
 
 async def get_crew_public_info(crew: Crew) -> str:
     """Return public crew info."""
-    msg = f""" 
+    msg = f"""
 Departure {crew.departure}
 
 Crew title: '{crew.title}'
@@ -783,13 +855,14 @@ async def crew_depart(
         crew.status = Crew.StatusVerbose.ON_MISSION
         crew.departure_datetime = datetime.datetime.now(datetime.timezone.UTC)
         await crew.asave()
+        # TODO: log event
     except Exception as e:  # TODO: specify deletion error
         logger.warning("Can't change crew status to ON_MISSION"
                        f'TG: {query.from_user.id}, Crew: {crew.pk}, {e=}')
 
     msg = f"Crew {crew.title}-{crew.pk} departured"
     buttons = [
-        [
+       [
             InlineKeyboardButton("Back", callback_data=CS.BACK),
         ]
     ]
@@ -797,6 +870,91 @@ async def crew_depart(
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
     return CS.SELECT_ITEM_ACTION
+
+
+async def change_tz(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Change user timezone."""
+    query = update.callback_query
+    await query.answer()
+    # await query.delete_message()
+
+    user = context.user_data['user']
+
+    msg = "Please enter your current Time Zone realtive to UTC\n"\
+        "Format: ±HH:MM"
+
+    buttons = [['Back'], ['/cancel']]
+    keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg,
+                                   reply_markup=keyboard)
+    return CS.CHANGE_TZ
+
+
+async def receive_user_tz(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Receive timezone reply and save it."""
+    user = context.user_data["user"]
+    tz = update.message.text
+    try:
+        # Parse & save
+        msg = ''
+        pass
+    except Exception as e:
+        logger.warning(f'TG: {update.from_user.id}, {e}')
+        msg = 'Please type correct Time Zone format.'
+
+        buttons = [['Back'], ['/cancel']]
+        keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
+
+        await update.message.reply_text(msg, reply_markup=keyboard)
+        return CS.CHANGE_TZ 
+
+
+    keyboard = await get_keyboard_crew(crew, 'pickup_location')
+    await update.message.reply_text(msg, reply_markup=keyboard)
+    return CS.CREW_LOCATION
+
+
+async def change_language(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Change user language."""
+    pass
+
+
+async def change_car_status(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Change user car status."""
+    query = update.callback_query
+    await query.answer()
+
+    user = context.user_data['user']
+    try:
+        user.has_car = not user.has_car
+        await user.asave()
+        msg = 'Car status is changed.'
+    except Exception as e:
+        logging.warning(f'Status is not changed. TG: {user.telegram_id}, {e}')
+        msg = f'Status is not changed. {e}'
+
+    buttons = [
+        [
+            InlineKeyboardButton("Back", callback_data=CS.SETTINGS),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.SELECT_ACTION
 
 
 def main() -> None:
@@ -918,6 +1076,27 @@ def main() -> None:
                 crew_update_handler,
                 CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
                 CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
+                CallbackQueryHandler(
+                    settings_command,
+                    pattern=f"^{CS.SETTINGS}$"
+                ),
+            ],
+            CS.SETTINGS: [
+                CallbackQueryHandler(
+                    change_car_status, pattern=f"^{CS.CHANGE_CAR_STATUS}"
+                ),
+                CallbackQueryHandler(
+                    change_tz, pattern=f"^{CS.CHANGE_TZ}"
+                ),
+                CallbackQueryHandler(
+                    change_language, pattern=f"^{CS.CHANGE_LANGUAGE}"
+                ),
+            ],
+            CS.CHANGE_TZ: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    receive_user_tz
+                ),
             ],
             CS.STOPPING: [CommandHandler("stop", start_conversation)],
         },
