@@ -1,3 +1,4 @@
+import datetime as dt
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -99,10 +100,23 @@ class CustomUser(AbstractUser):
     ]
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
         """Return full name."""
         names = [self.last_name, self.first_name, self.patronymic_name]
         parts = [part for part in names if part]
         return ' '.join(parts)
 
     full_name.fget.short_description = _('Full name')
+
+    @property
+    def tz(self) -> dt.timezone:
+        """Return timezone value as datetime.timezone format."""
+        return dt.timezone(
+            dt.timedelta(minutes=self.timezone)
+        )
+
+    def get_local_dt(self, _dt: dt.datetime) -> dt.datetime:
+        """Return local time."""
+        tz = self.tz
+        local_dt = _dt.astimezone(tz)
+        return local_dt
