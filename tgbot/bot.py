@@ -77,7 +77,7 @@ class ConversationStates:
         BACK,
 
         DELETE,
-        DEPART,
+        STATUS,
     ) = map(chr, range(23))
 
     END = ConversationHandler.END
@@ -762,7 +762,7 @@ async def get_crew_info(crew: CustomUser, tz: dt.timezone) -> str:
 __ Information __
 
 **** Crew ****
-Status: {crew.status}
+Status: {crew.get_status_display()}
 ID: {crew.id}
 Title: {crew.title}
 Pickup time: {timezone.localtime(crew.pickup_datetime, tz)}
@@ -823,10 +823,20 @@ Number of crews: {await dep.crews.acount()}
         #         """
     )
 
-    buttons = [
-        [
-            InlineKeyboardButton("Depart", callback_data=CS.DEPART),
-        ],
+    match crew.status:
+        case crew.StatusVerbose.AVAILABLE:
+            label = "Depart"
+        case crew.StatusVerbose.ON_MISSION:
+            label = "Return"
+        case crew.StatusVerbose.RETURNING:
+            label = "Complete"
+
+    if label:
+        buttons = [[InlineKeyboardButton(label, callback_data=CS.STATUS)]]
+    else:
+        buttons = []
+
+    buttons.extend([
         [
             InlineKeyboardButton("Delete", callback_data=CS.DELETE),
         ],
@@ -835,7 +845,7 @@ Number of crews: {await dep.crews.acount()}
             InlineKeyboardButton("Back", callback_data=CS.BACK),
             InlineKeyboardButton("Cancel", callback_data=CS.END),
         ]
-    ]
+    ])
 
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
@@ -892,32 +902,43 @@ async def crew_delete(update: Update,
     return CS.SELECT_ITEM_ACTION
 
 
-async def crew_depart(
+async def crew_change_status(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     """Switch crew instance status and make notification."""
     query = update.callback_query
     await query.answer()
+
     crew = context.user_data['crew']
     user = await get_user(update, context)
+
     try:
-        crew.status = Crew.StatusVerbose.ON_MISSION
-        crew.departure_datetime = dt.datetime.now(tz=user.tz)
+        match crew.status:
+            case crew.StatusVerbose.AVAILABLE:
+                crew.status = Crew.StatusVerbose.ON_MISSION
+                crew.departure_datetime = dt.datetime.now(tz=user.tz)
+                msg = f"Crew {crew.title}-{crew.pk} departured"
+
+            case crew.StatusVerbose.ON_MISSION:
+                crew.status = Crew.StatusVerbose.RETURNING
+                msg = f"Crew {crew.title}-{crew.pk} returning"
+
+            case crew.StatusVerbose.RETURNING:
+                crew.status = Crew.StatusVerbose.COMPLETED
+                crew.return_datetime = dt.datetime.now(tz=user.tz)
+                msg = f"Crew {crew.title}-{crew.pk} completed"
+
         await crew.asave()
         # TODO: log event
-    except Exception as e:  # TODO: specify deletion error
-        logger.warning("Can't change crew status to ON_MISSION"
-                       f'TG: {query.from_user.id}, Crew: {crew.pk}, {e=}')
 
-    msg = f"Crew {crew.title}-{crew.pk} departured"
-    buttons = [
-       [
-            InlineKeyboardButton("Back", callback_data=CS.BACK),
-        ]
-    ]
+    except Exception as e:
+        logger.warning("Can't change crew status."
+                       f'TG: {user.telegram_id}, Crew: {crew.pk}, {e=}')
 
+    buttons = [[InlineKeyboardButton("Back", callback_data=CS.BACK)]]
     keyboard = InlineKeyboardMarkup(buttons)
+
     await query.edit_message_text(msg, reply_markup=keyboard)
     return CS.SELECT_ITEM_ACTION
 
@@ -1077,15 +1098,15 @@ def main() -> None:
                 CallbackQueryHandler(crew_delete_confirmation,
                                      pattern=f"^{CS.DELETE}$"),
 
-                CallbackQueryHandler(crew_depart,
-                                     pattern=f"^{CS.DEPART}$"),
+                CallbackQueryHandler(crew_change_status,
+                                     pattern=f"^{CS.STATUS}$"),
                 CallbackQueryHandler(list_crews, pattern=f"^{CS.BACK}$"),
                 CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
             ],
             CS.DELETE: [
                 CallbackQueryHandler(crew_delete, pattern=f"^{CS.DELETE}$"),
                 CallbackQueryHandler(display_crew, pattern=f"^{CS.BACK}$"),
-            ]
+            ],
         },
 
         fallbacks=[CommandHandler("cancel", stop_nested)],
