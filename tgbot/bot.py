@@ -750,7 +750,7 @@ async def list_crews(update: Update,
     return CS.DISPLAY_ITEM
 
 
-async def get_crew_info(crew: CustomUser) -> str:
+async def get_crew_info(crew: CustomUser, tz: dt.timezone) -> str:
     """Display only the crew information."""
 
     passengers = '\n'.join([
@@ -759,10 +759,17 @@ async def get_crew_info(crew: CustomUser) -> str:
     ])
 
     info = f"""
-    Crew ID: {crew.id}
-    Crew Title: {crew.title}
-    Crew passengers:
-    {passengers}
+__ Information __
+
+**** Crew ****
+Status: {crew.status}
+ID: {crew.id}
+Title: {crew.title}
+Pickup time: {timezone.localtime(crew.pickup_datetime, tz)}
+Pickup location: {crew.pickup_location.coords}
+
+**** Passengers ({await crew.passengers.acount()}) ****
+{passengers}
     """
     return info
 
@@ -772,6 +779,7 @@ async def display_crew(update: Update,
     """Display detailed information of the chosen crew with buttons."""
     query = update.callback_query
     await query.answer()
+    user = await get_user(update, context)
 
     if context.user_data.get('crew'):
         crew = context.user_data['crew']
@@ -796,16 +804,17 @@ async def display_crew(update: Update,
 
     msg = (
         f"""
-{await get_crew_info(crew)}
-
+{await get_crew_info(crew, user.tz)}
+**** Search Request ****
 Missing person: {sreq.full_name}
 Diasappearance date: {sreq.disappearance_date}
 Location: {sreq.city}
 PSN: {sreq.location.coords}
 
+**** Departure ****
 Number of crews: {await dep.crews.acount()}
 
-Tasks ({await crew.departure.tasks.acount()}):
+**** Tasks ({await crew.departure.tasks.acount()}) ****
 {tasks}
         """
         # raw json:\n{dep.__dict__}\n
@@ -840,9 +849,11 @@ async def crew_delete_confirmation(update: Update,
     query = update.callback_query
     await query.answer()
 
+    user = get_user(update, context)
     crew = context.user_data['crew']
+
     msg = f'Do you want to delete crew: {crew.pk} {crew.title}\n'\
-          + await get_crew_info(crew)
+          + await get_crew_info(crew, user.tz)
 
     buttons = [
         [
