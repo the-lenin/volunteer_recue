@@ -126,6 +126,7 @@ async def get_user(
     return user
 
 
+# Authorization
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Welcoming a user at the joining."""
     msg = "I'm a Volunteer Rescue Bot!"
@@ -189,13 +190,16 @@ async def restrict(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def start_conversation(update: Update,
-                             context: ContextTypes.DEFAULT_TYPE) -> int:
+# Start of conversation
+async def start_conversation(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Welcoming a user at the joining."""
     query = update.callback_query
 
     user = await get_user(update, context)
-    crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+    crews = Crew.objects.exclude(status=Crew.StatusVerbose.COMPLETED)
     user_crews = crews.filter(driver=user)
     context.user_data['user_crews'] = user_crews
 
@@ -275,8 +279,10 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.message.reply_text(msg)
 
 
-async def help_command(update: Update,
-                       context: ContextTypes.DEFAULT_TYPE) -> int:
+async def help_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Display help message."""
     query = update.callback_query
 
@@ -351,8 +357,7 @@ Please select what you want to change:
     return CS.SETTINGS
 
 
-async def stop(update: Update,
-               context: ContextTypes.DEFAULT_TYPE) -> int:
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """End conversation by command."""
     msg = "Canceled. Return back to /start_conversation."
     await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
@@ -368,8 +373,11 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def list_departures(update: Update,
-                          context: ContextTypes.DEFAULT_TYPE) -> int:
+# Crew creation
+async def list_departures(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Display a list of all departures with open status."""
     query = update.callback_query
     await query.answer()
@@ -407,8 +415,10 @@ async def list_departures(update: Update,
     return CS.DISPLAY_ITEM
 
 
-async def display_departure(update: Update,
-                            context: ContextTypes.DEFAULT_TYPE) -> int:
+async def display_departure(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Display detailed information of the chosen departure with buttons."""
     query = update.callback_query
     await query.answer()
@@ -456,6 +466,7 @@ Tasks ({await dep.tasks.acount()}):
     return CS.SELECT_ITEM_ACTION
 
 
+# Crew creation & update
 async def get_keyboard_crew(
     crew: Crew,
     field: str = None
@@ -474,8 +485,10 @@ async def get_keyboard_crew(
     )
 
 
-async def receive_departure(update: Update,
-                            context: ContextTypes.DEFAULT_TYPE) -> int:
+async def receive_departure(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """ Display the selected departure and request to enter a crew name."""
     query = update.callback_query
     await query.answer()
@@ -529,8 +542,10 @@ async def receive_crew_title(
     return CS.CREW_LOCATION
 
 
-async def receive_crew_location(update: Update,
-                                context: ContextTypes.DEFAULT_TYPE) -> int:
+async def receive_crew_location(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Display the location and request to enter a crew capacity.
     """
@@ -553,8 +568,10 @@ async def receive_crew_location(update: Update,
     return CS.CREW_CAPACITY
 
 
-async def receive_crew_capacity(update: Update,
-                                context: ContextTypes.DEFAULT_TYPE) -> int:
+async def receive_crew_capacity(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Display crew capacity and request to enter a crew departure datetime.
     """
@@ -697,6 +714,7 @@ async def stop_nested(update: Update,
     return CS.STOPPING
 
 
+# Crew update
 async def list_crews(update: Update,
                      context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display a list of all available crews."""
@@ -893,6 +911,7 @@ async def crew_depart(
     return CS.SELECT_ITEM_ACTION
 
 
+# User settings
 async def change_tz(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
