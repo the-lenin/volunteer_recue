@@ -26,8 +26,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
 
 from django.conf import settings  # noqa: E402
-from django.db.models import Q  # noqa: E402
+# from django.db.models import Q  # noqa: E402
 from django.contrib.gis.geos import Point  # noqa: E402
+from django.utils import timezone  # noqa: E402
 
 from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
@@ -115,13 +116,13 @@ async def get_user(
     """Return user instance and record it to context if not present."""
     fields = {'id', 'telegram_id', 'timezone'}.union(extra_fields)
 
-    try:
-        user = context.user_data['user']
-    except KeyError:
-        user_id = update.effective_user.id
+    if not extra_fields:
+        if user := context.user_data.get('user'):
+            return user
 
-        user = await CustomUser.objects.only(*fields).aget(telegram_id=user_id)
-        context.user_data['user'] = user
+    user_id = update.effective_user.id
+    user = await CustomUser.objects.only(*fields).aget(telegram_id=user_id)
+    context.user_data['user'] = user
     return user
 
 
@@ -325,7 +326,7 @@ async def settings_command(
 Full name: {user.full_name}
 Car: {'Yes' if user.has_car else 'No'}
 Language:
-Time zone: {TZOffsetHandler.represent_tz_offset(user.timezone)}
+Time zone: {user.tz}
 
 Please select what you want to change:
     """
@@ -455,22 +456,22 @@ Tasks ({await dep.tasks.acount()}):
     return CS.SELECT_ITEM_ACTION
 
 
-async def get_keyboard_crew(crew: Crew,
-                            field: str = None) -> ReplyKeyboardMarkup:
+async def get_keyboard_crew(
+    crew: Crew,
+    field: str = None
+) -> ReplyKeyboardMarkup:
     """Return keyboard for crew creation/edit steps."""
     value = getattr(crew, field)
-    if isinstance(value, dt.datetime):
-        value = f'{value.isoformat()}'
-    elif isinstance(value, Point):
-        value = f"{value.x}, {value.y}"
-
     buttons = {
-        True: [[str(value)], ['/cancel']],
+        True: [['>>> Next >>>'], ['/cancel']],
         False: [['/cancel']],
     }.get(bool(value))
-    return ReplyKeyboardMarkup(buttons,
-                               resize_keyboard=True,
-                               one_time_keyboard=True)
+
+    return ReplyKeyboardMarkup(
+        buttons,
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
 
 
 async def receive_departure(update: Update,
@@ -505,13 +506,17 @@ Please enter the title of the crew:
     return CS.CREW_TITLE
 
 
-async def receive_crew_title(update: Update,
-                             context: ContextTypes.DEFAULT_TYPE) -> int:
+async def receive_crew_title(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """
     Display the crew title and request to enter a pickup location.
     """
     crew = context.user_data["crew"]
-    crew.title = update.message.text
+    answer = update.message.text
+    if answer != '>>> Next >>>':
+        crew.title = answer
 
     msg = f"Crew title: {crew.title}\n\n"\
           "Great! Now, please share the location of the crew"\
@@ -532,9 +537,11 @@ async def receive_crew_location(update: Update,
     crew = context.user_data["crew"]
     # TODO: Validation or error message
     # Try and return back step if not working
-    crew.pickup_location = Point(
-        *list(map(float, update.message.text.split(',')))
-    )
+    answer = update.message.text
+    if answer != '>>> Next >>>':
+        crew.pickup_location = Point(
+            *list(map(float, answer.split(',')))
+        )
 
     msg = f"Location: {crew.pickup_location.coords}\n\n"\
           "Awesome! How many passengers could you take:"
@@ -552,21 +559,24 @@ async def receive_crew_capacity(update: Update,
     Display crew capacity and request to enter a crew departure datetime.
     """
     crew = context.user_data["crew"]
-    crew.passengers_max = update.message.text
+    answer = update.message.text
+    if answer != '>>> Next >>>':
+        crew.passengers_max = answer
+
     user = await get_user(update, context)
     msg = f"Max passengers: {crew.passengers_max}\n\n"\
         "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
 
     # TODO: Display available formats
     if crew.pickup_datetime:
-        msg += f'\n{user.get_local_dt(crew.pickup_datetime)}'
+        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}'
 
     keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_DEPARTURE_TIME
 
 
-async def get_crew_public_info(crew: Crew) -> str:
+async def get_crew_public_info(crew: Crew, tz: dt.timezone) -> str:
     """Return public crew info."""
     msg = f"""
 Departure {crew.departure}
@@ -574,7 +584,7 @@ Departure {crew.departure}
 Crew title: '{crew.title}'
 Max passengers: {crew.passengers_max}
 Pickup location: {crew.pickup_location.coords}
-Pickup datetime: {crew.pickup_datetime}
+Pickup datetime: {timezone.localtime(crew.pickup_datetime, tz)}
     """
     return msg
 
@@ -586,13 +596,11 @@ async def receive_crew_pickup_dt(
     """Display entered summary and next action buttons."""
     crew = context.user_data["crew"]
     user = await get_user(update, context)
-    pickup_dt = parse(update.message.text).replace(tzinfo=user.tz)
+    answer = update.message.text
+    if answer != '>>> Next >>>':
+        crew.pickup_datetime = parse(answer).replace(tzinfo=user.tz)
 
-    # if not getattr(pickup_dt, 'tzinfo') or not pickup_dt.tzinfo == user.tz:
-    # pickup_dt = pickup_dt
-    crew.pickup_datetime = pickup_dt
-
-    msg = await get_crew_public_info(crew)\
+    msg = await get_crew_public_info(crew, user.tz)\
         + '\n\nPlease select the next action.'
 
     buttons = [
@@ -634,22 +642,22 @@ async def crew_save_or_update(
     query = update.callback_query
     await query.answer()
 
-    user_id = query.from_user.id
+    user = await get_user(update, context)
 
     await query.delete_message()
     try:
-        user = await CustomUser.objects.aget(
-            Q(telegram_id=user_id) & Q(has_car=True)
-        )
-
         crew = context.user_data["crew"]
         crew.driver = user
         crew.status = Crew.StatusVerbose.AVAILABLE
 
+        if getattr(crew, 'id') is None:
+            msg = "Created"
+        else:
+            msg = "Updated"
         await crew.asave()
-        msg = "Crew is created."
-        broadcast_msg = 'Crew is available.\n\n'\
-            + await get_crew_public_info(crew)
+
+        broadcast_msg = f'Crew is available ({msg}).\n\n'\
+            + await get_crew_public_info(crew, user.tz)
         await make_broadcast(context, broadcast_msg)
 
     except CustomUser.DoesNotExist:
@@ -659,12 +667,13 @@ async def crew_save_or_update(
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text=msg
         )
-        logging.warning(f'TG_id={user_id=}, User is not found in DB.')
+        logging.warning(f'TG_id: {user.telegram_id}, User is not found in DB.')
         return CS.END
 
     except Exception as e:
         msg = "Unexpected error. Crew is NOT created.\nTG: {user_id}, {e=}"
         logger.warning(e)
+        return CS.END
 
     msg += '\nReturn back to /start_conversation.'
     await context.bot.send_message(chat_id=update.effective_chat.id,
