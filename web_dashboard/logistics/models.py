@@ -137,8 +137,7 @@ class Crew(GetFieldsMixin, models.Model):
 
     def __str__(self) -> str:
         """Representation of a single instance."""
-        return f'{self.title}-{self.id} ({self.get_status_display()}): '\
-               f'{self.passengers.count()} p.'
+        return f'{self.title}-{self.id} ({self.get_status_display()})'
 
     def get_absolute_url(self) -> str:
         """Return absolute url to the object."""
