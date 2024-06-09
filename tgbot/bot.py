@@ -29,6 +29,8 @@ from django.conf import settings  # noqa: E402
 # from django.db.models import Q  # noqa: E402
 from django.contrib.gis.geos import Point  # noqa: E402
 from django.utils import timezone  # noqa: E402
+from django.db.models.query import QuerySet  # noqa: E402
+from django.db.models import Count  # noqa: E402
 
 from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
@@ -62,6 +64,7 @@ class ConversationStates:
 
         CREW_CREATION,
         CREW_UPDATE,
+        CREW_JOINING,
 
         LIST_ITEM,
         DISPLAY_ITEM,
@@ -78,7 +81,7 @@ class ConversationStates:
 
         DELETE,
         STATUS,
-    ) = map(chr, range(23))
+    ) = map(chr, range(24))
 
     END = ConversationHandler.END
 
@@ -207,11 +210,12 @@ async def start_conversation(
 
     if await user_crews.aexists():
         lines = [
-            get_formated_dtime(crew.pickup_datetime) + ": "
-            + await sync_to_async(crew.__str__)()
+            f"{get_formated_dtime(crew.pickup_datetime)}: "
+            f"{crew.__str__()}: {crew.passengers_count} p."
 
-            async for crew in user_crews.only('pickup_datetime')
-            .order_by("pickup_datetime")
+            async for crew in crews.only(
+                'title', 'pickup_datetime', 'status',
+            ).annotate(passengers_count=Count('passengers'))
         ]
 
         msg += f"\n\nYour crews: {await user_crews.acount()}\n\t"
@@ -236,6 +240,10 @@ async def start_conversation(
             InlineKeyboardButton('♻️ Update crew',
                                  callback_data=CS.CREW_UPDATE),
         ])
+    buttons.append([
+        InlineKeyboardButton('➕ Join crew',
+                             callback_data=CS.CREW_JOINING),
+    ])
     keyboard = InlineKeyboardMarkup(buttons)
 
     if query:
@@ -713,6 +721,26 @@ async def stop_nested(update: Update,
 
 
 # Crew update
+async def get_keyboard_crew_list(
+    crews: QuerySet[list[Crew]]
+) -> InlineKeyboardMarkup:
+    """Return a list of crew as Keyboard with buttons and callbac."""
+    buttons = [
+        [InlineKeyboardButton(
+            f"{get_formated_dtime(crew.pickup_datetime)}: "
+            f"{crew.__str__()}: {crew.passengers_count} p.",
+            callback_data=str(crew.id)
+        )]
+
+        async for crew in crews.only(
+            'title', 'pickup_datetime', 'status',
+        ).annotate(passengers_count=Count('passengers'))
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    return keyboard
+
+
 async def list_crews(update: Update,
                      context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display a list of all available crews."""
@@ -731,18 +759,7 @@ async def list_crews(update: Update,
         )
         return CS.END
 
-    buttons = [
-        [InlineKeyboardButton(
-            f"{get_formated_dtime(crew.pickup_datetime)}: "
-            f"{await sync_to_async(crew.__str__)()}",
-            callback_data=str(crew.id)
-        )]
-
-        async for crew in crews.only('pickup_datetime')
-    ]
-
-    keyboard = InlineKeyboardMarkup(buttons)
-
+    keyboard = await get_keyboard_crew_list(crews)
     msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
           "Please choose Crew to update:"
 
@@ -1040,6 +1057,35 @@ async def change_car_status(
     return CS.SELECT_ACTION
 
 
+# Crew Joining
+async def list_public_crews(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display a list of all available crews for joining as buttons."""
+    query = update.callback_query
+    await query.answer()
+    if context.user_data.get('crew'):
+        del context.user_data['crew']
+
+    crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+
+    if not await crews.aexists():
+        msg = "There are no available Crews to join."
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=msg
+        )
+        return CS.END
+
+    keyboard = await get_keyboard_crew_list(crews)
+    msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
+          "Please choose Crew to update:"
+
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.DISPLAY_ITEM
+
+
 def main() -> None:
     """Run the bot."""
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
@@ -1092,6 +1138,21 @@ def main() -> None:
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
             CS.STOPPING: CS.STOPPING,
+            CS.SHOWING: CS.SHOWING
+        },
+    )
+
+    crew_joining_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(
+            list_public_crews, pattern=f"^{CS.CREW_JOINING}$"
+        )],
+
+        states={
+            # CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
+        },
+        fallbacks=[CommandHandler("cancel", stop_nested)],
+        map_to_parent={
+            CS.STOPPING: CS.END,
             CS.SHOWING: CS.SHOWING
         },
     )
@@ -1157,6 +1218,7 @@ def main() -> None:
             CS.SELECT_ACTION: [
                 crew_create_handler,
                 crew_update_handler,
+                crew_joining_handler,
                 CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
                 CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
                 CallbackQueryHandler(
