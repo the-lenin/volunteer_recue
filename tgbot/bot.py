@@ -92,7 +92,7 @@ def get_allowed_users() -> set:
 
 
 def get_formated_dtime(dtime: dt.datetime) -> str:
-    return dtime.strftime('%H:%M - %d.%m.%Y')
+    return dtime.strftime('%d.%m.%Y - %H:%M ')
 
 
 allowed_users = get_allowed_users()
@@ -114,7 +114,7 @@ async def get_user(
     extra_fields: set[str] = set()
 ) -> CustomUser:
     """Return user instance and record it to context if not present."""
-    fields = {'id', 'telegram_id', 'timezone'}.union(extra_fields)
+    fields = {'id', 'telegram_id', 'timezone', 'has_car'}.union(extra_fields)
 
     if not extra_fields:
         if user := context.user_data.get('user'):
@@ -133,10 +133,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     user_id = update.effective_user.id
 
-    # TODO: something is wrong with update
     await TelegramUser.objects.aupdate_or_create(
         user_id=user_id,
-        last_action=dt.datetime.now(dt.UTC)
+        defaults={'last_action': dt.datetime.now(dt.UTC)}
     )
 
     global allowed_users
@@ -203,7 +202,8 @@ async def start_conversation(
     user_crews = crews.filter(driver=user)
     context.user_data['user_crews'] = user_crews
 
-    msg = f"Total number of crews: {await crews.acount()}"
+    time = get_formated_dtime(dt.datetime.now(tz=user.tz))
+    msg = f"🕰️ Now: {time} 🕰️\nTotal number of crews: {await crews.acount()}"
 
     if await user_crews.aexists():
         lines = [
@@ -221,20 +221,21 @@ async def start_conversation(
 
     buttons = [
         [
-            InlineKeyboardButton('Info', callback_data=CS.INFO),
-            InlineKeyboardButton('Help', callback_data=CS.HELP),
+            InlineKeyboardButton('ℹ️ Info', callback_data=CS.INFO),
+            InlineKeyboardButton('🆘 Help', callback_data=CS.HELP),
         ],
         [
-            InlineKeyboardButton('Settings', callback_data=CS.SETTINGS),
+            InlineKeyboardButton('⚙ Settings', callback_data=CS.SETTINGS),
         ],
-        [
-            InlineKeyboardButton('Create crew',
-                                 callback_data=CS.CREW_CREATION),
-            InlineKeyboardButton('Update crew',
-                                 callback_data=CS.CREW_UPDATE),
-        ]
     ]
 
+    if user.has_car:
+        buttons.append([
+            InlineKeyboardButton('🏗️ Create crew',
+                                 callback_data=CS.CREW_CREATION),
+            InlineKeyboardButton('♻️ Update crew',
+                                 callback_data=CS.CREW_UPDATE),
+        ])
     keyboard = InlineKeyboardMarkup(buttons)
 
     if query:
@@ -268,7 +269,7 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         f'\n{Crew._meta.verbose_name_plural}: {crews}'
     )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Back", callback_data=str(CS.END))],
+        [InlineKeyboardButton("🔙 Back", callback_data=str(CS.END))],
     ])
 
     if query:
@@ -295,7 +296,7 @@ async def help_command(
     )
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Back", callback_data=str(CS.END))],
+        [InlineKeyboardButton("🔙 Back", callback_data=str(CS.END))],
     ])
 
     if query:
@@ -320,9 +321,6 @@ async def settings_command(
             'first_name',
             'last_name',
             'patronymic_name',
-            'has_car',
-            'telegram_id',
-            'timezone',
         }
     )
 
@@ -330,7 +328,7 @@ async def settings_command(
     # TZ for a user
     msg = f"""
 Full name: {user.full_name}
-Car: {'Yes' if user.has_car else 'No'}
+Car: {'🚙 Yes' if user.has_car else '🚶 No'}
 Language:
 Time zone: {user.tz}
 
@@ -339,16 +337,17 @@ Please select what you want to change:
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(
-            "Car status", callback_data=CS.CHANGE_CAR_STATUS
+            "🚙 Car status", callback_data=CS.CHANGE_CAR_STATUS
         )],
         [InlineKeyboardButton(
-            "Language", callback_data=CS.CHANGE_LANGUAGE
+            "🌐 Language", callback_data=CS.CHANGE_LANGUAGE
+
         )],
         [InlineKeyboardButton(
-            "Time zone", callback_data=CS.CHANGE_TZ
+            "🕰 Time zone", callback_data=CS.CHANGE_TZ
         )],
         [InlineKeyboardButton(
-            "Back", callback_data=CS.SHOWING
+            "🔙 Back", callback_data=CS.SHOWING
         )],
     ])
 
@@ -454,9 +453,9 @@ Tasks ({await dep.tasks.acount()}):
 
     buttons = [
         [
-            InlineKeyboardButton("Select", callback_data=CS.SELECT),
-            InlineKeyboardButton("Back", callback_data=CS.BACK),
-            InlineKeyboardButton("Cancel", callback_data=str(CS.END)),
+            InlineKeyboardButton("☑️ Select", callback_data=CS.SELECT),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=str(CS.END)),
         ]
     ]
 
@@ -546,8 +545,7 @@ async def receive_crew_location(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """
-    Display the location and request to enter a crew capacity.
+    """ Display the location and request to enter a crew capacity.
     """
     crew = context.user_data["crew"]
     # TODO: Validation or error message
@@ -622,9 +620,9 @@ async def receive_crew_pickup_dt(
 
     buttons = [
         [
-            InlineKeyboardButton("Save", callback_data=CS.SELECT),
-            InlineKeyboardButton("Edit", callback_data=CS.BACK),
-            InlineKeyboardButton("Cancel", callback_data=str(CS.END))
+            InlineKeyboardButton("✅ Save", callback_data=CS.SELECT),
+            InlineKeyboardButton("🔧 Edit", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=str(CS.END))
         ],
     ]
 
@@ -673,7 +671,7 @@ async def crew_save_or_update(
             msg = "Updated"
         await crew.asave()
 
-        broadcast_msg = f'Crew is available ({msg}).\n\n'\
+        broadcast_msg = f'📢 Crew is available ({msg}). 📢\n\n'\
             + await get_crew_public_info(crew, user.tz)
         await make_broadcast(context, broadcast_msg)
 
@@ -726,8 +724,10 @@ async def list_crews(update: Update,
     crews = context.user_data['user_crews']
 
     if not await crews.aexists():
-        await update.message.reply_text(
-            "There are no available Crews to edit."
+        msg = "There are no available Crews to edit."
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=msg
         )
         return CS.END
 
@@ -830,20 +830,25 @@ Number of crews: {await dep.crews.acount()}
             label = "Return"
         case crew.StatusVerbose.RETURNING:
             label = "Complete"
+        case _:
+            label = None
+
+    buttons = []
 
     if label:
-        buttons = [[InlineKeyboardButton(label, callback_data=CS.STATUS)]]
-    else:
-        buttons = []
+        buttons.append(
+            [InlineKeyboardButton('🏷️ ' + label, callback_data=CS.STATUS)]
+        )
 
     buttons.extend([
         [
-            InlineKeyboardButton("Delete", callback_data=CS.DELETE),
+            InlineKeyboardButton(
+                "⚠ Delete", callback_data=CS.DELETE),
         ],
         [
-            InlineKeyboardButton("Edit", callback_data=CS.SELECT),
-            InlineKeyboardButton("Back", callback_data=CS.BACK),
-            InlineKeyboardButton("Cancel", callback_data=CS.END),
+            InlineKeyboardButton("🔧 Edit", callback_data=CS.SELECT),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
         ]
     ])
 
@@ -859,16 +864,16 @@ async def crew_delete_confirmation(update: Update,
     query = update.callback_query
     await query.answer()
 
-    user = get_user(update, context)
+    user = await get_user(update, context)
     crew = context.user_data['crew']
 
-    msg = f'Do you want to delete crew: {crew.pk} {crew.title}\n'\
+    msg = f'Do you want to delete crew: {crew.title}-{crew.pk}?\n'\
           + await get_crew_info(crew, user.tz)
 
     buttons = [
         [
-            InlineKeyboardButton("Yes", callback_data=CS.DELETE),
-            InlineKeyboardButton("No", callback_data=CS.BACK),
+            InlineKeyboardButton("🗑️ Yes", callback_data=CS.DELETE),
+            InlineKeyboardButton("🔙 No", callback_data=CS.BACK),
         ]
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -882,18 +887,20 @@ async def crew_delete(update: Update,
     query = update.callback_query
     await query.answer()
     crew = context.user_data['crew']
-    pk = crew.pk
+    title = f'{crew.title}-{crew.pk}'
+
     try:
+        msg = f"Deleted crew: {title}"
         await crew.adelete()
         del context.user_data['crew']
     except Exception as e:  # TODO: specify deletion error
         logger.warning('Crew deletion error\n,'
-                       f'TG: {query.from_user.id}, Crew: {pk},\n{e=}')
+                       f'TG: {query.from_user.id}, Crew: {title},\n{e=}')
+        msg = f'Crew deletion error.\n{e}'
 
-    msg = f"Deleted crew: {pk}"
     buttons = [
         [
-            InlineKeyboardButton("Back", callback_data=CS.BACK),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
         ]
     ]
 
@@ -936,7 +943,7 @@ async def crew_change_status(
         logger.warning("Can't change crew status."
                        f'TG: {user.telegram_id}, Crew: {crew.pk}, {e=}')
 
-    buttons = [[InlineKeyboardButton("Back", callback_data=CS.BACK)]]
+    buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
     keyboard = InlineKeyboardMarkup(buttons)
 
     await query.edit_message_text(msg, reply_markup=keyboard)
@@ -960,7 +967,10 @@ async def change_tz(
         "Please enter your current Time Zone realtive to UTC\n"\
         "Format: ±HH:MM"
 
-    buttons = [['Back'], ['/cancel']]
+    buttons = [
+        # ['🔙 Back'],
+        ['/cancel']
+    ]
     keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg,
@@ -978,14 +988,14 @@ async def receive_user_tz(
     try:
         user.timezone = TZOffsetHandler.normalize_tz_offset(tz)
         await user.asave()
+        msg = f"Timezone is updated: {tz}"
     except Exception as e:
-        logger.warning(f'TG: {update.from_user.id}, {e}')
-        msg = 'Please type correct Time Zone format.'
+        logger.warning(f'TG: {user.telegram_id}, {e}')
+        msg = f'Please type correct Time Zone format.\nError: {e}'
 
-    msg = f"Timezone is updated: {tz}"
     buttons = [
         [
-            InlineKeyboardButton("Back", callback_data=CS.SETTINGS),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.SETTINGS),
         ]
     ]
 
@@ -1021,7 +1031,7 @@ async def change_car_status(
 
     buttons = [
         [
-            InlineKeyboardButton("Back", callback_data=CS.SETTINGS),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.SETTINGS),
         ]
     ]
 
