@@ -26,13 +26,17 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
 
 from django.conf import settings  # noqa: E402
-# from django.db.models import Q  # noqa: E402
+from django.db.models import F  # , Q  # noqa: E402
 from django.contrib.gis.geos import Point  # noqa: E402
 from django.utils import timezone  # noqa: E402
 from django.db.models.query import QuerySet  # noqa: E402
 from django.db.models import Count  # noqa: E402
 
-from web_dashboard.logistics.models import Departure, Crew  # noqa: E402
+from web_dashboard.logistics.models import (  # noqa: E402
+    Departure,
+    Crew,
+    JoinRequest
+)
 from web_dashboard.search_requests.models import SearchRequest   # noqa: E402
 from web_dashboard.users.models import CustomUser  # noqa: E402
 from web_dashboard.users.forms import TZOffsetHandler  # noqa: E402
@@ -642,10 +646,13 @@ async def receive_crew_pickup_dt(
 async def make_broadcast(
     context: ContextTypes,
     message: str,
-    users: list[int] = allowed_users
+    users: list[int] | int = allowed_users
 ) -> None:
     """Broadcast message to all allowed users."""
-    for user_id in allowed_users:
+    if isinstance(users, int):
+        users = [users]
+
+    for user_id in users:
         try:
             await context.bot.send_message(chat_id=user_id, text=message)
         except error.Forbidden:
@@ -741,8 +748,10 @@ async def get_keyboard_crew_list(
     return keyboard
 
 
-async def list_crews(update: Update,
-                     context: ContextTypes.DEFAULT_TYPE) -> int:
+async def list_crews(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
     """Display a list of all available crews."""
     query = update.callback_query
     await query.answer()
@@ -767,7 +776,7 @@ async def list_crews(update: Update,
     return CS.DISPLAY_ITEM
 
 
-async def get_crew_info(crew: CustomUser, tz: dt.timezone) -> str:
+async def get_crew_info(crew: Crew, tz: dt.timezone) -> str:
     """Display only the crew information."""
 
     passengers = '\n'.join([
@@ -791,27 +800,9 @@ Pickup location: {crew.pickup_location.coords}
     return info
 
 
-async def display_crew(update: Update,
-                       context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Display detailed information of the chosen crew with buttons."""
-    query = update.callback_query
-    await query.answer()
-    user = await get_user(update, context)
-
-    if context.user_data.get('crew'):
-        crew = context.user_data['crew']
-
-    else:
-        pk = int(query.data)
-        crew = await context.user_data['user_crews']\
-            .select_related('departure', 'departure__search_request')\
-            .aget(pk=pk)
-
-        context.user_data['crew'] = crew
-
-    # Display detailed information about the selected crew with buttons
+async def get_crew_detailed_info(crew: Crew, tz: dt.timezone) -> str:
+    """Display the crew and related information."""
     dep = crew.departure
-    context.user_data['departure'] = dep
     tasks = '\n'.join([
         f'* {task.title} - {task.coordinates.coords}:\n{task.description}'
         async for task in dep.tasks.all()
@@ -821,7 +812,7 @@ async def display_crew(update: Update,
 
     msg = (
         f"""
-{await get_crew_info(crew, user.tz)}
+{await get_crew_info(crew, tz)}
 **** Search Request ****
 Missing person: {sreq.full_name}
 Diasappearance date: {sreq.disappearance_date}
@@ -839,6 +830,29 @@ Number of crews: {await dep.crews.acount()}
         # raw tasks:\n{dep.tasks.__dict__}
         #         """
     )
+    return msg
+
+
+async def display_crew(update: Update,
+                       context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Display detailed information of the chosen crew with buttons."""
+    query = update.callback_query
+    await query.answer()
+    user = await get_user(update, context)
+
+    if context.user_data.get('crew'):
+        crew = context.user_data['crew']
+
+    else:
+        pk = int(query.data)
+        crew = await context.user_data['user_crews']\
+            .select_related('departure', 'departure__search_request')\
+            .aget(pk=pk)
+
+        context.user_data['crew'] = crew
+        context.user_data['departure'] = crew.departure
+
+    msg = get_crew_detailed_info(crew, user.tz)
 
     match crew.status:
         case crew.StatusVerbose.AVAILABLE:
@@ -1080,10 +1094,85 @@ async def list_public_crews(
 
     keyboard = await get_keyboard_crew_list(crews)
     msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
-          "Please choose Crew to update:"
+          "Please choose Crew to join:"
 
     await query.edit_message_text(msg, reply_markup=keyboard)
     return CS.DISPLAY_ITEM
+
+
+async def display_crew_pedestrian(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display detailed crew information for pedestrian."""
+    query = update.callback_query
+    await query.answer()
+
+    pk = int(query.data)
+    crew = await context.user_data['user_crews']\
+        .select_related('departure', 'departure__search_request')\
+        .annotate(driver_tg_id=F('driver__telegram_id')).aget(pk=pk)
+
+    context.user_data['crew'] = crew
+
+    user = await get_user(update, context)
+
+    msg = await get_crew_detailed_info(crew, user.tz)
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "⚠ Send joining request", callback_data=CS.SELECT
+            ),
+        ],
+        [
+            # InlineKeyboardButton("🔧 Edit", callback_data=CS.SELECT),
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+
+    return CS.SELECT_ITEM_ACTION
+
+
+async def apply_to_crew(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display detailed crew information for pedestrian."""
+    query = update.callback_query
+    await query.answer()
+
+    user = await get_user(update, context)
+    crew = context.user_data['crew']
+
+    try:
+        await JoinRequest.objects.acreate(
+            status=JoinRequest.StatusVerbose.PENDING,
+            crew=crew,
+            pedestrian=user,
+            request_time=dt.datetime.now(tz=user.tz)
+        )
+
+        broadcast_msg = f"Crew '{crew}' has new join request!"
+
+        await make_broadcast(context, broadcast_msg, crew.driver_tg_id)
+        msg = "Join request is sent"
+
+    except Exception as e:
+        msg = 'Join request is failed. '\
+            f'TG: {user.telegram_id} Unexpected error: {e}'
+        logger.warning(msg)
+
+    buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+
+    return CS.SELECT_ITEM_ACTION
 
 
 def main() -> None:
@@ -1148,7 +1237,13 @@ def main() -> None:
         )],
 
         states={
-            # CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
+            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew_pedestrian)],
+            CS.SELECT_ITEM_ACTION: [
+                CallbackQueryHandler(apply_to_crew, pattern=f"^{CS.SELECT}$"),
+                CallbackQueryHandler(list_public_crews,
+                                     pattern=f'^{CS.BACK}$'),
+                CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
+            ],
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
