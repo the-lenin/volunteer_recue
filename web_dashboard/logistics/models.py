@@ -143,6 +143,66 @@ class Crew(GetFieldsMixin, models.Model):
         """Return absolute url to the object."""
         return reverse('logistics:crew_read', kwargs={'pk': self.pk})
 
+    async def aaccept_join_request(self, join_request):
+        """Async accept JoinRequest to crew and change it status."""
+        if join_request.crew != self:
+            raise ValueError("This join request does not belong to this crew.")
+        if await self.passengers.acount() >= self.passengers_max:
+            raise ValueError("The crew has already reached the maximum number of passengers.")  # noqa: E501
+
+        join_request.status = JoinRequest.StatusVerbose.ACCEPTED
+        await join_request.asave()
+        self.passengers.add(join_request.pedestrian)
+        await self.asave()
+
+    async def areject_join_request(self, join_request):
+        """Async reject JoinRequest and change it status."""
+        if join_request.crew != self:
+            raise ValueError("This join request does not belong to this crew.")
+        join_request.status = JoinRequest.StatusVerbose.REJECTED
+        await join_request.asave()
+
+
+class JoinRequest(models.Model):
+    """Model to represent join requests from pedestrians to crews."""
+    pedestrian = models.ForeignKey(
+        CustomUser,
+        verbose_name=_('Pedestrian'),
+        related_name='join_requests',
+        on_delete=models.CASCADE,
+    )
+
+    crew = models.ForeignKey(
+        Crew,
+        verbose_name=_('Crew'),
+        related_name='join_requests',
+        on_delete=models.CASCADE,
+    )
+
+    request_time = models.DateTimeField(
+        _('Request Time'),
+        auto_now_add=True,
+    )
+
+    class StatusVerbose(models.TextChoices):
+        """Pedestrian status choices."""
+        PENDING = 'P', _('Pending')
+        ACCEPTED = 'A', _('Accepted')
+        REJECTED = 'R', _('Rejected')
+
+    status = models.CharField(
+        _('status'),
+        max_length=1,
+        choices=StatusVerbose.choices,
+        default=StatusVerbose.PENDING,
+    )
+
+    class Meta:
+        unique_together = ('pedestrian', 'crew')
+
+    def __str__(self):
+        return f'{self.pedestrian} ({self.get_status_display()}) -> {self.crew}'  # noqa: E501
+
 
 class Task(GetFieldsMixin, models.Model):
     """Define a task for a SearchRequest."""
