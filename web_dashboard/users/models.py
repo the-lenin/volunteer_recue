@@ -17,6 +17,10 @@ class CustomUser(AbstractUser):
         null=True,
     )
 
+    dateofbirth = models.DateField(
+        _('Date of birth'),
+    )
+
     nickname = models.CharField(
         _('Nickname'),
         max_length=64,
