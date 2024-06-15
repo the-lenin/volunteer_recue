@@ -156,11 +156,13 @@ class Crew(GetFieldsMixin, models.Model):
         await self.asave()
 
     async def areject_join_request(self, join_request):
-        """Async reject JoinRequest and change it status."""
+        """Async reject JoinRequest and change it status and remove it."""
         if join_request.crew != self:
             raise ValueError("This join request does not belong to this crew.")
         join_request.status = JoinRequest.StatusVerbose.REJECTED
         await join_request.asave()
+        await self.passengers.aremove(join_request.passenger)
+        await self.asave()
 
 
 class JoinRequest(models.Model):
