@@ -164,10 +164,10 @@ class Crew(GetFieldsMixin, models.Model):
 
 
 class JoinRequest(models.Model):
-    """Model to represent join requests from pedestrians to crews."""
-    pedestrian = models.ForeignKey(
+    """Model to represent join requests from passengers to crews."""
+    passenger = models.ForeignKey(
         CustomUser,
-        verbose_name=_('Pedestrian'),
+        verbose_name=_('Passenger'),
         related_name='join_requests',
         on_delete=models.CASCADE,
     )
@@ -198,10 +198,10 @@ class JoinRequest(models.Model):
     )
 
     class Meta:
-        unique_together = ('pedestrian', 'crew')
+        unique_together = ('passenger', 'crew')
 
     def __str__(self):
-        return f'{self.pedestrian} ({self.get_status_display()}) -> {self.crew}'  # noqa: E501
+        return f'{self.passenger} ({self.get_status_display()}) -> {self.crew}'  # noqa: E501
 
 
 class Task(GetFieldsMixin, models.Model):
