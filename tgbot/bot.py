@@ -69,6 +69,7 @@ class ConversationStates:
         CREW_CREATION,
         CREW_UPDATE,
         CREW_JOINING,
+        CREW_MANAGE_JOINED,
 
         LIST_ITEM,
         DISPLAY_ITEM,
@@ -85,7 +86,7 @@ class ConversationStates:
 
         DELETE,
         STATUS,
-    ) = map(chr, range(24))
+    ) = map(chr, range(25))
 
     END = ConversationHandler.END
 
@@ -98,7 +99,10 @@ def get_allowed_users() -> set:
     return set(CustomUser.objects.values_list('telegram_id', flat=True))
 
 
-def get_formated_dtime(dtime: dt.datetime) -> str:
+def get_formated_dtime(dtime: dt.datetime, tz=False) -> str:
+    if tz:
+        timestr = dtime.strftime('%d.%m.%Y - %H:%M (UTC %z)')
+        return timestr[:-3] + ':' + timestr[-3:]
     return dtime.strftime('%d.%m.%Y - %H:%M ')
 
 
@@ -121,7 +125,16 @@ async def get_user(
     extra_fields: set[str] = set()
 ) -> CustomUser:
     """Return user instance and record it to context if not present."""
-    fields = {'id', 'telegram_id', 'timezone', 'has_car'}.union(extra_fields)
+    fields = {
+        'id',
+        'telegram_id',
+        'timezone',
+        'has_car',
+
+        'first_name',
+        'last_name',
+        'patronymic_name'
+    }.union(extra_fields)
 
     if not extra_fields:
         if user := context.user_data.get('user'):
@@ -201,7 +214,8 @@ async def start_conversation(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Welcoming a user at the joining."""
+    """Start top level conversation handler."""
+
     query = update.callback_query
 
     user = await get_user(update, context)
@@ -209,7 +223,7 @@ async def start_conversation(
     user_crews = crews.filter(driver=user)
     context.user_data['user_crews'] = user_crews
 
-    time = get_formated_dtime(dt.datetime.now(tz=user.tz))
+    time = get_formated_dtime(dt.datetime.now(tz=user.tz), tz=True)
     msg = f"🕰️ Now: {time} 🕰️\nTotal number of crews: {await crews.acount()}"
 
     if await user_crews.aexists():
@@ -241,20 +255,28 @@ async def start_conversation(
         buttons.append([
             InlineKeyboardButton('🏗️ Create crew',
                                  callback_data=CS.CREW_CREATION),
-            InlineKeyboardButton('♻️ Update crew',
+            InlineKeyboardButton('🔄 Update crew',
                                  callback_data=CS.CREW_UPDATE),
         ])
     buttons.append([
         InlineKeyboardButton('➕ Join crew',
                              callback_data=CS.CREW_JOINING),
     ])
+
+    if await user.join_requests.aexists():
+        buttons[-1].append(InlineKeyboardButton(
+            '📝 Manage joined crews', callback_data=CS.CREW_MANAGE_JOINED
+        ))
+
     keyboard = InlineKeyboardMarkup(buttons)
 
     if query:
         await query.answer()
-        await query.edit_message_text(msg, reply_markup=keyboard)
-    else:
-        await update.message.reply_text(msg, reply_markup=keyboard)
+        await query.delete_message()
+        # await query.edit_message_text(msg, reply_markup=keyboard)
+    # else:
+    await update.effective_chat.send_message(msg, reply_markup=keyboard)
+    # await update.message.reply_text(msg, reply_markup=keyboard)
 
     return CS.SELECT_ACTION
 
@@ -1079,16 +1101,29 @@ async def list_public_crews(
     """Display a list of all available crews for joining as buttons."""
     query = update.callback_query
     await query.answer()
-    if context.user_data.get('crew'):
-        del context.user_data['crew']
 
-    crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+    user = await get_user(update, context)
+
+    status = context.user_data.get('status', query.data)
+    context.user_data['status'] = status
+
+    match status:
+        case CS.CREW_JOINING:
+            crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+            error_msg = "There are no available Crews to join."
+            msg = "The total number of existing crews: "\
+                f"{await crews.acount()}\n\nPlease choose a Crew to join:"
+
+        case CS.CREW_MANAGE_JOINED:
+            crews = Crew.objects.filter(join_requests__passenger=user)
+            error_msg = "There are no Crews you took part in."
+            msg = "The total number of Crews you took part in: "\
+                f"{await crews.acount()}\n\nPlease choose a Crew to edit:"
 
     if not await crews.aexists():
-        msg = "There are no available Crews to join."
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=msg
+            text=error_msg
         )
         return CS.END
 
@@ -1100,31 +1135,41 @@ async def list_public_crews(
     return CS.DISPLAY_ITEM
 
 
-async def display_crew_pedestrian(
+async def display_crew_passenger(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Display detailed crew information for pedestrian."""
+    """Display detailed crew information for passenger."""
     query = update.callback_query
     await query.answer()
 
     pk = int(query.data)
     crew = await context.user_data['user_crews']\
         .select_related('departure', 'departure__search_request')\
-        .annotate(driver_tg_id=F('driver__telegram_id')).aget(pk=pk)
+        .annotate(driver_tg_id=F('driver__telegram_id'))\
+        .prefetch_related('passengers')\
+        .aget(pk=pk)
 
     context.user_data['crew'] = crew
 
     user = await get_user(update, context)
-
     msg = await get_crew_detailed_info(crew, user.tz)
 
+    is_passenger = await JoinRequest.objects.filter(crew=crew, passenger=user)\
+        .aexists()
+
+    if is_passenger:
+        button = [InlineKeyboardButton(
+           "❗ Cancel joining request (& leave crew)", callback_data=CS.DELETE
+        )]
+
+    else:
+        button = [InlineKeyboardButton(
+           "☑️ Send joining request", callback_data=CS.SELECT
+        )]
+
     buttons = [
-        [
-            InlineKeyboardButton(
-                "⚠ Send joining request", callback_data=CS.SELECT
-            ),
-        ],
+        button,
         [
             # InlineKeyboardButton("🔧 Edit", callback_data=CS.SELECT),
             InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
@@ -1142,7 +1187,7 @@ async def apply_to_crew(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Display detailed crew information for pedestrian."""
+    """Create a JoinRequest for the crew and inform driver about it."""
     query = update.callback_query
     await query.answer()
 
@@ -1153,11 +1198,15 @@ async def apply_to_crew(
         await JoinRequest.objects.acreate(
             status=JoinRequest.StatusVerbose.PENDING,
             crew=crew,
-            pedestrian=user,
+            passenger=user,
             request_time=dt.datetime.now(tz=user.tz)
         )
 
-        broadcast_msg = f"Crew '{crew}' has new join request!"
+        num_joinrequests = await JoinRequest.objects.filter(crew=crew)\
+            .exclude(status=JoinRequest.StatusVerbose.REJECTED).acount()
+
+        broadcast_msg = f"🟢 Crew '{crew}': +1 join request! "\
+            f"({num_joinrequests}/{crew.passengers_max})"
 
         await make_broadcast(context, broadcast_msg, crew.driver_tg_id)
         msg = "Join request is sent"
@@ -1168,11 +1217,63 @@ async def apply_to_crew(
         logger.warning(msg)
 
     buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
-
     keyboard = InlineKeyboardMarkup(buttons)
     await query.edit_message_text(msg, reply_markup=keyboard)
+    del context.user_data['status']
 
-    return CS.SELECT_ITEM_ACTION
+    return CS.STOPPING
+
+
+async def exempt_from_crew(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
+    Delete the JoinRequest instance and exclude the passenger from the crew.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    user = await get_user(update, context)
+    crew = context.user_data['crew']
+
+    try:
+        joinrequest = await JoinRequest.objects.aget(
+            crew=crew,
+            passenger=user,
+        )
+
+        await joinrequest.adelete()
+
+        num_joinrequests = await JoinRequest.objects.filter(crew=crew)\
+            .exclude(status=JoinRequest.StatusVerbose.REJECTED).acount()
+
+        broadcast_msg = f"🔴 Crew '{crew}': –1 join request! "\
+            f"({num_joinrequests}/{crew.passengers_max})"
+
+        msg = "Join request is canceled"
+
+        if await crew.passengers.filter(pk=user.pk).aexists():
+            await crew.passengers.aremove(user)
+            broadcast_msg += f'\n⚠ {user.full_name} left the crew.'
+            msg = f'You left crew {crew}'
+            logger.info(
+                    f"User '{user.pk}: {user.full_name}' left crew '{crew}'"
+            )
+
+        await make_broadcast(context, broadcast_msg, crew.driver_tg_id)
+
+    except Exception as e:
+        msg = 'Join request is failed. '\
+            f'TG: {user.telegram_id} Unexpected error: {e}'
+        logger.warning(msg)
+
+    buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    del context.user_data['status']
+
+    return CS.STOPPING
 
 
 def main() -> None:
@@ -1226,20 +1327,23 @@ def main() -> None:
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            CS.STOPPING: CS.STOPPING,
+            CS.STOPPING: CS.END,
             CS.SHOWING: CS.SHOWING
         },
     )
 
     crew_joining_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(
-            list_public_crews, pattern=f"^{CS.CREW_JOINING}$"
+            list_public_crews,
+            pattern=f"^({CS.CREW_JOINING}|{CS.CREW_MANAGE_JOINED})$"
         )],
 
         states={
-            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew_pedestrian)],
+            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew_passenger)],
             CS.SELECT_ITEM_ACTION: [
                 CallbackQueryHandler(apply_to_crew, pattern=f"^{CS.SELECT}$"),
+                CallbackQueryHandler(exempt_from_crew,
+                                     pattern=f"^{CS.DELETE}$"),
                 CallbackQueryHandler(list_public_crews,
                                      pattern=f'^{CS.BACK}$'),
                 CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
@@ -1341,7 +1445,7 @@ def main() -> None:
                     receive_user_tz
                 ),
             ],
-            CS.STOPPING: [CommandHandler("stop", start_conversation)],
+            CS.STOPPING: [CallbackQueryHandler(start_conversation)],
         },
         fallbacks=[CommandHandler("cancel", stop)],
     )
