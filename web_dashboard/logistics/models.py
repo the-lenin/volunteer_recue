@@ -152,7 +152,7 @@ class Crew(GetFieldsMixin, models.Model):
 
         join_request.status = JoinRequest.StatusVerbose.ACCEPTED
         await join_request.asave()
-        self.passengers.add(join_request.pedestrian)
+        await self.passengers.aadd(join_request.passenger)
         await self.asave()
 
     async def areject_join_request(self, join_request):
@@ -200,7 +200,19 @@ class JoinRequest(models.Model):
     class Meta:
         unique_together = ('passenger', 'crew')
 
+    @property
+    def emoji(self):
+        match self.status:
+            case self.StatusVerbose.PENDING:
+                return "🟡"
+            case self.StatusVerbose.ACCEPTED:
+                return "🟢"
+            case  self.StatusVerbose.REJECTED:
+                return "🔴"
+        return ""
+
     def __str__(self):
+        """String representation."""
         return f'{self.passenger} ({self.get_status_display()}) -> {self.crew}'  # noqa: E501
 
 
