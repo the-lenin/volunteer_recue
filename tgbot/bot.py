@@ -1081,7 +1081,6 @@ async def display_passenger(
 
     p = jreq.passenger
 
-    # user = await get_user(update, context)
     msg = f"""{jreq.emoji} ({jreq.get_status_display()})
 Full name: {p.full_name}
 Nickname: {p.nickname}
@@ -1090,12 +1089,20 @@ Address: {p.address}
 Phone: {p.phone_number}
 Telegram: # TODO: @Username
     """
+
+    btn_accept = InlineKeyboardButton("🟢 Accept", callback_data=CS.ACCEPT)
+    btn_reject = InlineKeyboardButton("🔴 Reject", callback_data=CS.REJECT)
+
+    match jreq.status:
+        case JoinRequest.StatusVerbose.PENDING:
+            btn_row = [btn_accept, btn_reject]
+        case JoinRequest.StatusVerbose.ACCEPTED:
+            btn_row = [btn_reject]
+        case JoinRequest.StatusVerbose.REJECTED:
+            btn_row = [btn_accept]
+
     buttons = [
-        [
-            InlineKeyboardButton("🟢 Accept", callback_data=CS.ACCEPT),
-            InlineKeyboardButton("🔴 Reject", callback_data=CS.REJECT),
-        ],
-        # TODO: DELETE from crew
+        btn_row,
         [
             InlineKeyboardButton("🔙 Back",
                                  callback_data=CS.CREW_MANAGE_PASSENGERS),
@@ -1122,6 +1129,11 @@ async def accept_join_request(update: Update,
     try:
         msg = f"Passenger '{jreq.passenger.full_name}' joined crew: {title}"
         await crew.aaccept_join_request(jreq)
+
+        broadcast_msg = f"You are accepted to crew '{title}'"
+        await make_broadcast(context,
+                             broadcast_msg,
+                             jreq.passenger.telegram_id)
 
     except Exception as e:
         logger.warning('Passenger joining error\n TG: {query.from_user.id},'
@@ -1153,6 +1165,11 @@ async def reject_join_request(update: Update,
     try:
         msg = f"Passenger {jreq.passenger.full_name} rejected from crew: {title}"  # noqa: E501
         await crew.areject_join_request(jreq)
+
+        broadcast_msg = f"You are rejected to crew '{title}'"
+        await make_broadcast(context,
+                             broadcast_msg,
+                             jreq.passenger.telegram_id)
 
     except Exception as e:
         logger.warning('Passenger rejection error\n TG: {query.from_user.id},'
