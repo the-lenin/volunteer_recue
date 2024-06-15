@@ -80,13 +80,17 @@ class ConversationStates:
         CREW_CAPACITY,
         CREW_DEPARTURE_TIME,
         CREW_SELECT_ACTION,
+        CREW_MANAGE_PASSENGERS,
 
         SELECT,
         BACK,
 
+        ACCEPT,
+        REJECT,
+
         DELETE,
         STATUS,
-    ) = map(chr, range(25))
+    ) = map(chr, range(28))
 
     END = ConversationHandler.END
 
@@ -579,8 +583,7 @@ async def receive_crew_location(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """ Display the location and request to enter a crew capacity.
-    """
+    """ Display the location and request to enter a crew capacity."""
     crew = context.user_data["crew"]
     # TODO: Validation or error message
     # Try and return back step if not working
@@ -860,6 +863,7 @@ async def display_crew(update: Update,
     """Display detailed information of the chosen crew with buttons."""
     query = update.callback_query
     await query.answer()
+
     user = await get_user(update, context)
 
     if context.user_data.get('crew'):
@@ -874,7 +878,25 @@ async def display_crew(update: Update,
         context.user_data['crew'] = crew
         context.user_data['departure'] = crew.departure
 
-    msg = get_crew_detailed_info(crew, user.tz)
+    join_requests = JoinRequest.objects.filter(crew=crew)\
+        .exclude(status=JoinRequest.StatusVerbose.ACCEPTED)
+
+    if await join_requests.aexists():
+        pending = await join_requests.filter(
+            status=JoinRequest.StatusVerbose.PENDING
+        ).acount()
+
+        rejected = await join_requests.filter(
+            status=JoinRequest.StatusVerbose.REJECTED
+        ).acount()
+        msg = f'📥 Join requests: ({pending}) 📥\n'\
+            f'Pending: {pending}\nRejected: {rejected}\n'\
+            f'Accepted: {await crew.passengers.acount()}/{crew.passengers_max}'
+
+    else:
+        msg = ''
+
+    msg += await get_crew_detailed_info(crew, user.tz)
 
     match crew.status:
         case crew.StatusVerbose.AVAILABLE:
@@ -895,8 +917,11 @@ async def display_crew(update: Update,
 
     buttons.extend([
         [
-            InlineKeyboardButton(
-                "⚠ Delete", callback_data=CS.DELETE),
+            InlineKeyboardButton('🛂 Manage passengers',
+                                 callback_data=CS.CREW_MANAGE_PASSENGERS)
+        ],
+        [
+            InlineKeyboardButton("⚠ Delete", callback_data=CS.DELETE)
         ],
         [
             InlineKeyboardButton("🔧 Edit", callback_data=CS.SELECT),
@@ -1003,6 +1028,149 @@ async def crew_change_status(
     return CS.SELECT_ITEM_ACTION
 
 
+# Passengers managemnt
+async def list_passengers(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display a list of passager requests as buttons."""
+    query = update.callback_query
+    await query.answer()
+
+    user = await get_user(update, context)
+    crew = context.user_data['crew']
+
+    joinrequests = crew.join_requests.prefetch_related('passenger')
+    context.user_data['joinrequests'] = joinrequests
+
+    msg = await get_crew_info(crew, user.tz) + 'Please select the action:'
+
+    buttons = [
+        [
+            InlineKeyboardButton(f"{jreq.passenger.full_name} {jreq.emoji}",
+                                 callback_data=f'{jreq.pk}'),
+        ]
+        async for jreq in joinrequests.all()
+    ]
+
+    buttons.append(
+        [
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
+        ]
+    )
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+
+    return CS.CREW_MANAGE_PASSENGERS
+
+
+async def display_passenger(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display passenger instance with buttons."""
+    query = update.callback_query
+    await query.answer()
+    pk = int(query.data)
+
+    joinrequests = context.user_data['joinrequests']
+    jreq = await joinrequests.aget(pk=pk)
+    context.user_data['joinrequest'] = jreq
+
+    p = jreq.passenger
+
+    # user = await get_user(update, context)
+    msg = f"""{jreq.emoji} ({jreq.get_status_display()})
+Full name: {p.full_name}
+Nickname: {p.nickname}
+DOB: {p.dateofbirth}
+Address: {p.address}
+Phone: {p.phone_number}
+Telegram: # TODO: @Username
+    """
+    buttons = [
+        [
+            InlineKeyboardButton("🟢 Accept", callback_data=CS.ACCEPT),
+            InlineKeyboardButton("🔴 Reject", callback_data=CS.REJECT),
+        ],
+        # TODO: DELETE from crew
+        [
+            InlineKeyboardButton("🔙 Back",
+                                 callback_data=CS.CREW_MANAGE_PASSENGERS),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+
+    return CS.CREW_MANAGE_PASSENGERS
+
+
+async def accept_join_request(update: Update,
+                              context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Accept passenger join request to the crew."""
+    query = update.callback_query
+    await query.answer()
+
+    crew = context.user_data['crew']
+    jreq = context.user_data['joinrequest']
+    title = f'{crew.title}-{crew.pk}'
+
+    try:
+        msg = f"Passenger '{jreq.passenger.full_name}' joined crew: {title}"
+        await crew.aaccept_join_request(jreq)
+
+    except Exception as e:
+        logger.warning('Passenger joining error\n TG: {query.from_user.id},'
+                       f'Crew: {title}, JoinRequest: {jreq} \n{e=}')
+        msg = f'Error. Passenger is not added to the crew.\n{e}'
+        raise e
+    buttons = [
+        [
+            InlineKeyboardButton("🔙 Back",
+                                 callback_data=CS.CREW_MANAGE_PASSENGERS),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.CREW_MANAGE_PASSENGERS
+
+
+async def reject_join_request(update: Update,
+                              context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Accept passenger join request to the crew."""
+    query = update.callback_query
+    await query.answer()
+
+    crew = context.user_data['crew']
+    jreq = context.user_data['joinrequest']
+    title = f'{crew.title}-{crew.pk}'
+
+    try:
+        msg = f"Passenger {jreq.passenger.full_name} rejected from crew: {title}"  # noqa: E501
+        await crew.areject_join_request(jreq)
+
+    except Exception as e:
+        logger.warning('Passenger rejection error\n TG: {query.from_user.id},'
+                       f'Crew: {title}, JoinRequest: {jreq} \n{e=}')
+        msg = f'Error. Passenger rejection is unsuccessfull.\n{e}'
+
+    buttons = [
+        [
+            InlineKeyboardButton("🔙 Back",
+                                 callback_data=CS.CREW_MANAGE_PASSENGERS),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.CREW_MANAGE_PASSENGERS
+
+
 # User settings
 async def change_tz(
     update: Update,
@@ -1098,7 +1266,7 @@ async def list_public_crews(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Display a list of all available crews for joining as buttons."""
+    """Display a list of all available crews or a passeger specific crews."""
     query = update.callback_query
     await query.answer()
 
@@ -1135,7 +1303,7 @@ async def list_public_crews(
     return CS.DISPLAY_ITEM
 
 
-async def display_crew_passenger(
+async def display_crew_for_passenger(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
@@ -1339,7 +1507,9 @@ def main() -> None:
         )],
 
         states={
-            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew_passenger)],
+            CS.DISPLAY_ITEM: [
+                CallbackQueryHandler(display_crew_for_passenger)
+            ],
             CS.SELECT_ITEM_ACTION: [
                 CallbackQueryHandler(apply_to_crew, pattern=f"^{CS.SELECT}$"),
                 CallbackQueryHandler(exempt_from_crew,
@@ -1351,7 +1521,7 @@ def main() -> None:
         },
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
-            CS.STOPPING: CS.END,
+            CS.STOPPING: CS.STOPPING,
             CS.SHOWING: CS.SHOWING
         },
     )
@@ -1367,12 +1537,25 @@ def main() -> None:
                 crew_action_handler,
                 CallbackQueryHandler(crew_delete_confirmation,
                                      pattern=f"^{CS.DELETE}$"),
-
                 CallbackQueryHandler(crew_change_status,
                                      pattern=f"^{CS.STATUS}$"),
+                CallbackQueryHandler(list_passengers,
+                                     pattern=f"^{CS.CREW_MANAGE_PASSENGERS}$"),
                 CallbackQueryHandler(list_crews, pattern=f"^{CS.BACK}$"),
                 CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$")
             ],
+            CS.CREW_MANAGE_PASSENGERS: [
+                CallbackQueryHandler(list_passengers,
+                                     pattern=f"^{CS.CREW_MANAGE_PASSENGERS}$"),
+                CallbackQueryHandler(accept_join_request,
+                                     pattern=f"^{CS.ACCEPT}$"),
+                CallbackQueryHandler(reject_join_request,
+                                     pattern=f"^{CS.REJECT}$"),
+                CallbackQueryHandler(display_crew, pattern=f"^{CS.BACK}$"),
+                CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$"),
+                CallbackQueryHandler(display_passenger),
+            ],
+
             CS.DELETE: [
                 CallbackQueryHandler(crew_delete, pattern=f"^{CS.DELETE}$"),
                 CallbackQueryHandler(display_crew, pattern=f"^{CS.BACK}$"),
