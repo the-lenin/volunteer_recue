@@ -739,9 +739,6 @@ async def crew_save_or_update(
     keyboard = InlineKeyboardMarkup(buttons)
     await update.effective_chat.send_message(msg, reply_markup=keyboard)
 
-    # await context.bot.send_message(chat_id=update.effective_chat.id,
-    #                                text=msg)
-
     context.user_data.clear()
     return CS.SHOWING
 
@@ -827,6 +824,8 @@ async def get_crew_info(crew: Crew, tz: dt.timezone) -> str:
         async for ps in crew.passengers.all()
     ])
 
+    d = crew.driver
+
     info = f"""
 __ Information __
 
@@ -836,6 +835,11 @@ ID: {crew.id}
 Title: {crew.title}
 Pickup time: {timezone.localtime(crew.pickup_datetime, tz)}
 Pickup location: {crew.pickup_location.coords}
+
+    Driver
+Nickname: {d.nickname if d.nickname else d.full_name}
+Phone: {d.phone_number}
+Telegram: # TODO: add @Username
 
 **** Passengers ({await crew.passengers.acount()}) ****
 {passengers}
@@ -1304,7 +1308,6 @@ async def list_public_crews(
     """Display a list of all available crews or a passeger specific crews."""
     query = update.callback_query
     await query.answer()
-
     user = await get_user(update, context)
 
     status = context.user_data.get('status', query.data)
@@ -1350,7 +1353,7 @@ async def display_crew_for_passenger(
     crew = await context.user_data['user_crews']\
         .select_related('departure', 'departure__search_request')\
         .annotate(driver_tg_id=F('driver__telegram_id'))\
-        .prefetch_related('passengers')\
+        .prefetch_related('driver', 'passengers')\
         .aget(pk=pk)
 
     context.user_data['crew'] = crew
