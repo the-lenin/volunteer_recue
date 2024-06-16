@@ -232,7 +232,7 @@ async def start_conversation(
 
     if await user_crews.aexists():
         lines = [
-            f"{get_formated_dtime(crew.pickup_datetime)}: "
+            f"{get_formated_dtime(timezone.localtime(crew.pickup_datetime, user.tz))}: "  # noqa: E501
             f"{crew.__str__()}: {crew.passengers_count} p."
 
             async for crew in crews.only(
@@ -246,6 +246,9 @@ async def start_conversation(
     msg += "\n\nI'm a Volunteer Rescue Bot!\nWhat do you want to do?"
 
     buttons = [
+        [
+            InlineKeyboardButton('🆕 Reload', callback_data=CS.SHOWING)
+        ],
         [
             InlineKeyboardButton('ℹ️ Info', callback_data=CS.INFO),
             InlineKeyboardButton('🆘 Help', callback_data=CS.HELP),
@@ -277,10 +280,8 @@ async def start_conversation(
     if query:
         await query.answer()
         await query.delete_message()
-        # await query.edit_message_text(msg, reply_markup=keyboard)
-    # else:
+
     await update.effective_chat.send_message(msg, reply_markup=keyboard)
-    # await update.message.reply_text(msg, reply_markup=keyboard)
 
     return CS.SELECT_ACTION
 
@@ -351,7 +352,10 @@ async def settings_command(
 ) -> int:
     """Display settings menu."""
     query = update.callback_query
-    await query.answer()
+    if query:
+        await query.answer()
+        await query.delete_message()
+
     user = await get_user(
         update,
         context,
@@ -389,8 +393,7 @@ Please select what you want to change:
         )],
     ])
 
-    await query.answer()
-    await query.edit_message_text(msg, reply_markup=keyboard)
+    await update.effective_chat.send_message(msg, reply_markup=keyboard)
     return CS.SETTINGS
 
 
@@ -756,7 +759,7 @@ async def stop_nested(update: Update,
 async def get_keyboard_crew_list(
     crews: QuerySet[list[Crew]]
 ) -> InlineKeyboardMarkup:
-    """Return a list of crew as Keyboard with buttons and callbac."""
+    """Return a list of crew as Keyboard with buttons and callback."""
     buttons = [
         [InlineKeyboardButton(
             f"{get_formated_dtime(crew.pickup_datetime)}: "
@@ -768,6 +771,11 @@ async def get_keyboard_crew_list(
             'title', 'pickup_datetime', 'status',
         ).annotate(passengers_count=Count('passengers'))
     ]
+
+    # buttons.append([
+    #     InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+    #     InlineKeyboardButton("❌ Cancel", callback_data=str(CS.END))
+    # ])
 
     keyboard = InlineKeyboardMarkup(buttons)
     return keyboard
@@ -785,13 +793,16 @@ async def list_crews(
 
     crews = context.user_data['user_crews']
 
+    btn_bottom_row = [
+        InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+        InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
+    ]
+
     if not await crews.aexists():
         msg = "There are no available Crews to edit."
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=msg
-        )
-        return CS.END
+        keyboard = InlineKeyboardMarkup(btn_bottom_row)
+        await query.edit_message_text(msg, reply_markup=keyboard)
+        return CS.SHOWING
 
     keyboard = await get_keyboard_crew_list(crews)
     msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
@@ -1197,17 +1208,18 @@ async def change_tz(
     """Change user timezone."""
     query = update.callback_query
     await query.answer()
+    await query.delete_message()
     # await query.delete_message()
 
     user = context.user_data['user']
 
-    msg = 'You current TZ: '\
+    msg = 'Go /back to settings\n\nYou current TZ: '\
         f'{TZOffsetHandler.represent_tz_offset(user.timezone)}\n'\
         "Please enter your current Time Zone realtive to UTC\n"\
         "Format: ±HH:MM"
 
     buttons = [
-        # ['🔙 Back'],
+        ['/back'],
         ['/cancel']
     ]
     keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
@@ -1550,7 +1562,12 @@ def main() -> None:
         )],
 
         states={
-            CS.DISPLAY_ITEM: [CallbackQueryHandler(display_crew)],
+            CS.DISPLAY_ITEM: [
+                # CallbackQueryHandler(start_conversation,
+                #                      pattern=f"^{CS.BACK}$"),
+                # CallbackQueryHandler(stop_nested, pattern=f"^{CS.END}$"),
+                CallbackQueryHandler(display_crew),
+            ],
             CS.SELECT_ITEM_ACTION: [
                 crew_action_handler,
                 CallbackQueryHandler(crew_delete_confirmation,
@@ -1621,6 +1638,8 @@ def main() -> None:
                 crew_joining_handler,
                 CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
                 CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
+                CallbackQueryHandler(start_conversation,
+                                     pattern=f"^{CS.SHOWING}$"),
                 CallbackQueryHandler(
                     settings_command,
                     pattern=f"^{CS.SETTINGS}$"
@@ -1641,6 +1660,7 @@ def main() -> None:
                 ),
             ],
             CS.CHANGE_TZ: [
+                CommandHandler("back", settings_command),
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
                     receive_user_tz
