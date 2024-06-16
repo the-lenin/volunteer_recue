@@ -805,7 +805,8 @@ async def get_crew_info(crew: Crew, tz: dt.timezone) -> str:
     """Display only the crew information."""
 
     passengers = '\n'.join([
-        f"{ps.full_name} {ps.phone_number} @{ps.telegram_id}"
+        f"{ps.nickname if ps.nickname else ps.full_name} "
+        f"{ps.phone_number} @{ps.telegram_id}"
         async for ps in crew.passengers.all()
     ])
 
@@ -1043,7 +1044,7 @@ async def list_passengers(
     joinrequests = crew.join_requests.prefetch_related('passenger')
     context.user_data['joinrequests'] = joinrequests
 
-    msg = await get_crew_info(crew, user.tz) + 'Please select the action:'
+    msg = await get_crew_info(crew, user.tz) + '\nPlease select the action:'
 
     buttons = [
         [
