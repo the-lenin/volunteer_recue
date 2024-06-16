@@ -726,18 +726,24 @@ async def crew_save_or_update(
             chat_id=update.effective_chat.id, text=msg
         )
         logging.warning(f'TG_id: {user.telegram_id}, User is not found in DB.')
-        return CS.END
+        return CS.SHOWING
 
     except Exception as e:
         msg = "Unexpected error. Crew is NOT created.\nTG: {user_id}, {e=}"
         logger.warning(e)
-        return CS.END
+        return CS.SHOWING
 
-    msg += '\nReturn back to /start_conversation.'
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text=msg)
+    msg += '\nReturn back to Main menu.'
+
+    buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
+    keyboard = InlineKeyboardMarkup(buttons)
+    await update.effective_chat.send_message(msg, reply_markup=keyboard)
+
+    # await context.bot.send_message(chat_id=update.effective_chat.id,
+    #                                text=msg)
+
     context.user_data.clear()
-    return CS.STOPPING
+    return CS.SHOWING
 
 
 async def stop_nested(update: Update,
@@ -793,10 +799,10 @@ async def list_crews(
 
     crews = context.user_data['user_crews']
 
-    btn_bottom_row = [
+    btn_bottom_row = [[
         InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
-        InlineKeyboardButton("❌ Cancel", callback_data=CS.END),
-    ]
+        # InlineKeyboardButton("❌ Cancel", callback_data=CS.END)
+    ]]
 
     if not await crews.aexists():
         msg = "There are no available Crews to edit."
@@ -1219,7 +1225,6 @@ async def change_tz(
         "Format: ±HH:MM"
 
     buttons = [
-        ['/back'],
         ['/cancel']
     ]
     keyboard = ReplyKeyboardMarkup(buttons, one_time_keyboard=True)
@@ -1630,7 +1635,7 @@ def main() -> None:
         ],
         states={
             CS.SHOWING: [
-                CallbackQueryHandler(start_conversation, pattern=f"^{CS.END}$")
+                CallbackQueryHandler(start_conversation)
             ],
             CS.SELECT_ACTION: [
                 crew_create_handler,
