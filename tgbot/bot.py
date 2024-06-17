@@ -267,7 +267,7 @@ async def start_conversation(
         ])
     buttons.append([
         InlineKeyboardButton('➕ Join crew',
-                             callback_data=CS.CREW_JOINING),
+                             callback_data=CS.CREW_MANAGE_PASSENGERS),
     ])
 
     if await user.join_requests.aexists():
@@ -1301,6 +1301,68 @@ async def change_car_status(
 
 
 # Crew Joining
+async def request_passenger_psn(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Request passenger postition."""
+    query = update.callback_query
+    await query.answer()
+    await query.delete_message()
+
+    msg = '/back\n\nPlease send your current coordinates: X, Y'
+    keyboard = await get_keyboard_cancel()
+
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg,
+                                   reply_markup=keyboard)
+    return CS.CREW_MANAGE_PASSENGERS
+
+
+async def confirm_passenger_psn(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Request passenger postition."""
+    psn = update.message.text
+    context.user_data['passenger_psn'] = psn
+    try:
+        # validate psn
+        pass
+    except Exception as e:
+        error_msg = f"Unexpected error: {e}\n"\
+            "Please send your current coordinates: X, Y"
+
+        logger.warning(
+            "Passanger psn validation error."
+            f"TG: '{update.effective_user.id}'. Error: {e}"
+        )
+
+        keyboard = await get_keyboard_cancel()
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=error_msg,
+                                       reply_markup=keyboard)
+
+        return CS.CREW_MANAGE_PASSENGERS
+
+    msg = f'Your position is: {psn}\n\nPlease confirm.'
+    buttons = [
+        [
+            InlineKeyboardButton('Confirm',
+                                 callback_data=CS.CREW_JOINING)
+        ],
+        [
+            InlineKeyboardButton("🔙 Back",
+                                 callback_data=CS.CREW_MANAGE_PASSENGERS),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.SHOWING),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.effective_chat.send_message(msg, reply_markup=keyboard)
+    return CS.SELECT_ACTION
+
+
 async def list_public_crews(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -1308,14 +1370,19 @@ async def list_public_crews(
     """Display a list of all available crews or a passeger specific crews."""
     query = update.callback_query
     await query.answer()
+
     user = await get_user(update, context)
 
-    status = context.user_data.get('status', query.data)
-    context.user_data['status'] = status
+    status = context.user_data.get('status')
+    if status is None:
+        status = query.data
+        context.user_data['status'] = status
 
     match status:
         case CS.CREW_JOINING:
+            psn = context.user_data['passenger_psn']
             crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+
             error_msg = "There are no available Crews to join."
             msg = "The total number of existing crews: "\
                 f"{await crews.acount()}\n\nPlease choose a Crew to join:"
@@ -1337,7 +1404,7 @@ async def list_public_crews(
     msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
           "Please choose Crew to join:"
 
-    await query.edit_message_text(msg, reply_markup=keyboard)
+    await update.effective_chat.send_message(msg, reply_markup=keyboard)
     return CS.DISPLAY_ITEM
 
 
@@ -1641,6 +1708,7 @@ def main() -> None:
                 CallbackQueryHandler(start_conversation)
             ],
             CS.SELECT_ACTION: [
+                CommandHandler("back", start_conversation),
                 crew_create_handler,
                 crew_update_handler,
                 crew_joining_handler,
@@ -1652,19 +1720,28 @@ def main() -> None:
                     settings_command,
                     pattern=f"^{CS.SETTINGS}$"
                 ),
+                CallbackQueryHandler(request_passenger_psn,
+                                     pattern=f"^{CS.CREW_MANAGE_PASSENGERS}$"),
+            ],
+            CS.CREW_MANAGE_PASSENGERS: [
+                CommandHandler("back", start_conversation),
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    confirm_passenger_psn
+                )
             ],
             CS.SETTINGS: [
                 CallbackQueryHandler(
-                    change_car_status, pattern=f"^{CS.CHANGE_CAR_STATUS}"
+                    change_car_status, pattern=f"^{CS.CHANGE_CAR_STATUS}$"
                 ),
                 CallbackQueryHandler(
-                    change_tz, pattern=f"^{CS.CHANGE_TZ}"
+                    change_tz, pattern=f"^{CS.CHANGE_TZ}$"
                 ),
                 CallbackQueryHandler(
-                    change_language, pattern=f"^{CS.CHANGE_LANGUAGE}"
+                    change_language, pattern=f"^{CS.CHANGE_LANGUAGE}$"
                 ),
                 CallbackQueryHandler(
-                    start_conversation, pattern=f"^{CS.SHOWING}"
+                    start_conversation, pattern=f"^{CS.SHOWING}$"
                 ),
             ],
             CS.CHANGE_TZ: [
