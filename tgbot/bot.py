@@ -1,6 +1,7 @@
 import os
 import logging
 import django
+import re
 import datetime as dt
 from dateutil.parser import parse
 from asgiref.sync import sync_to_async
@@ -28,6 +29,7 @@ django.setup()
 from django.conf import settings  # noqa: E402
 from django.db.models import F  # , Q  # noqa: E402
 from django.contrib.gis.geos import Point  # noqa: E402
+from django.contrib.gis.db.models.functions import Distance  # noqa: E402
 from django.utils import timezone  # noqa: E402
 from django.db.models.query import QuerySet  # noqa: E402
 from django.db.models import Count  # noqa: E402
@@ -96,6 +98,25 @@ class ConversationStates:
 
 
 CS = ConversationStates
+
+
+def get_coordinates(psn: str) -> tuple[float]:
+    """Parse position coordinates strig to tuple (lat, long)."""
+    pattern = r'([-+]?\d*\.?\d+)[,\s]*([-+]?\d*\.?\d+)'
+    matches = re.findall(pattern, psn)
+
+    if matches:
+        lat, long = list(map(float, matches[0]))
+
+        if all((bool(-90 <= lat <= 90), bool(-180 <= long <= 180))):
+            return lat, long
+
+        raise ValueError(
+            "Exceed limit. -180 <= Latitude <= 180. -90 <= Longitude <= 90."
+        )
+
+    else:
+        raise ValueError("Invalid coordinates format. `Latitude, Longitude`.")
 
 
 def get_allowed_users() -> set:
@@ -224,7 +245,7 @@ async def start_conversation(
 
     user = await get_user(update, context)
     crews = Crew.objects.exclude(status=Crew.StatusVerbose.COMPLETED)
-    user_crews = crews.filter(driver=user)
+    user_crews = crews.filter(driver=user).prefetch_related('driver')
     context.user_data['user_crews'] = user_crews
 
     time = get_formated_dtime(dt.datetime.now(tz=user.tz), tz=True)
@@ -592,9 +613,7 @@ async def receive_crew_location(
     # Try and return back step if not working
     answer = update.message.text
     if answer != '>>> Next >>>':
-        crew.pickup_location = Point(
-            *list(map(float, answer.split(',')))
-        )
+        crew.pickup_location = Point(get_coordinates(answer))
 
     msg = f"Location: {crew.pickup_location.coords}\n\n"\
           "Awesome! How many passengers could you take:"
@@ -760,21 +779,35 @@ async def stop_nested(update: Update,
 
 # Crew update
 async def get_keyboard_crew_list(
-    crews: QuerySet[list[Crew]]
+    crews: QuerySet[list[Crew]],
+    distance: bool = False
 ) -> InlineKeyboardMarkup:
     """Return a list of crew as Keyboard with buttons and callback."""
-    buttons = [
-        [InlineKeyboardButton(
-            f"{get_formated_dtime(crew.pickup_datetime)}: "
-            f"{crew.__str__()}: {crew.passengers_count} p.",
-            callback_data=str(crew.id)
-        )]
+    if not distance:
+        buttons = [
+            [InlineKeyboardButton(
+                f"{get_formated_dtime(crew.pickup_datetime)}: "
+                f"{crew.__str__()}: {crew.passengers_count} p.",
+                callback_data=str(crew.id)
+            )]
 
-        async for crew in crews.only(
-            'title', 'pickup_datetime', 'status',
-        ).annotate(passengers_count=Count('passengers'))
-    ]
+            async for crew in crews.only(
+                'title', 'pickup_datetime', 'status',
+            ).annotate(passengers_count=Count('passengers'))
+        ]
+    else:
+        buttons = [
+            [InlineKeyboardButton(
+                f"{get_formated_dtime(crew.pickup_datetime)}: "
+                f"{crew.__str__()}: {crew.passengers_count} p. "
+                f"({crew.distance.km:.2f} km)",
+                callback_data=str(crew.id)
+            )]
 
+            async for crew in crews.only(
+                'title', 'pickup_datetime', 'status',
+            ).annotate(passengers_count=Count('passengers'))
+        ]
     # buttons.append([
     #     InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
     #     InlineKeyboardButton("❌ Cancel", callback_data=str(CS.END))
@@ -1325,10 +1358,10 @@ async def confirm_passenger_psn(
 ) -> int:
     """Request passenger postition."""
     psn = update.message.text
-    context.user_data['passenger_psn'] = psn
     try:
-        # validate psn
-        pass
+        psn = get_coordinates(psn)
+        context.user_data['passenger_psn'] = psn
+
     except Exception as e:
         error_msg = f"Unexpected error: {e}\n"\
             "Please send your current coordinates: X, Y"
@@ -1380,8 +1413,15 @@ async def list_public_crews(
 
     match status:
         case CS.CREW_JOINING:
-            psn = context.user_data['passenger_psn']
-            crews = Crew.objects.filter(status=Crew.StatusVerbose.AVAILABLE)
+            # TODO: enter filter validation
+            lat, long = context.user_data['passenger_psn']
+            passenger_location = Point(lat, long, srid=4326)
+
+            crews = Crew.objects.filter(
+                status=Crew.StatusVerbose.AVAILABLE
+            ).annotate(
+                distance=Distance('pickup_location', passenger_location)
+            ).order_by('distance')
 
             error_msg = "There are no available Crews to join."
             msg = "The total number of existing crews: "\
@@ -1400,7 +1440,7 @@ async def list_public_crews(
         )
         return CS.END
 
-    keyboard = await get_keyboard_crew_list(crews)
+    keyboard = await get_keyboard_crew_list(crews, distance=True)
     msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
           "Please choose Crew to join:"
 
