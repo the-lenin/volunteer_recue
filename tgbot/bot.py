@@ -1058,16 +1058,24 @@ async def crew_change_status(
             case crew.StatusVerbose.AVAILABLE:
                 crew.status = Crew.StatusVerbose.ON_MISSION
                 crew.departure_datetime = dt.datetime.now(tz=user.tz)
-                msg = f"Crew {crew.title}-{crew.pk} departured"
+                msg = f"Crew {crew.title}-{crew.pk} departured."
 
             case crew.StatusVerbose.ON_MISSION:
                 crew.status = Crew.StatusVerbose.RETURNING
-                msg = f"Crew {crew.title}-{crew.pk} returning"
+                msg = f"Crew {crew.title}-{crew.pk} returning."
 
             case crew.StatusVerbose.RETURNING:
                 crew.status = Crew.StatusVerbose.COMPLETED
                 crew.return_datetime = dt.datetime.now(tz=user.tz)
-                msg = f"Crew {crew.title}-{crew.pk} completed"
+                msg = f"Crew {crew.title}-{crew.pk} completed.\n"\
+                    "Please add your tracks to the crew History."
+
+                passengers = await sync_to_async(list)(
+                    crew.passengers.values_list('telegram_id', flat=True)
+                )
+
+                logger.info(f"Broacast crew status completed to: {passengers}")
+                await make_broadcast(context, msg, passengers)
 
         await crew.asave()
         # TODO: log event
@@ -1075,7 +1083,7 @@ async def crew_change_status(
     except Exception as e:
         logger.warning("Can't change crew status."
                        f'TG: {user.telegram_id}, Crew: {crew.pk}, {e=}')
-
+        # raise e
     buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
     keyboard = InlineKeyboardMarkup(buttons)
 
