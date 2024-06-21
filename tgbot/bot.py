@@ -21,13 +21,20 @@ from telegram.ext import (
     ConversationHandler,
 )
 
+from warnings import filterwarnings
+from telegram.warnings import PTBUserWarning
+
 from tgbot.logging_config import setup_logging_config
+
+filterwarnings(
+    action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning
+)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'web_dashboard.settings')
 django.setup()
 
 from django.conf import settings  # noqa: E402
-from django.db.models import F  # , Q  # noqa: E402
+from django.db.models import F, Q  # noqa: E402
 from django.contrib.gis.geos import Point  # noqa: E402
 from django.contrib.gis.db.models.functions import Distance  # noqa: E402
 from django.utils import timezone  # noqa: E402
@@ -72,10 +79,12 @@ class ConversationStates:
         CREW_UPDATE,
         CREW_JOINING,
         CREW_MANAGE_JOINED,
+        CREW_ARCHIVE,
 
         LIST_ITEM,
         DISPLAY_ITEM,
         SELECT_ITEM_ACTION,
+        RECEIVE_FILE,
 
         CREW_TITLE,
         CREW_LOCATION,
@@ -92,7 +101,7 @@ class ConversationStates:
 
         DELETE,
         STATUS,
-    ) = map(chr, range(28))
+    ) = map(chr, range(30))
 
     END = ConversationHandler.END
 
@@ -101,7 +110,7 @@ CS = ConversationStates
 
 
 def get_coordinates(psn: str) -> tuple[float]:
-    """Parse position coordinates strig to tuple (lat, long)."""
+    """Parse coordinates string, validate it and return tuple (lat, long)."""
     pattern = r'([-+]?\d*\.?\d+)[,\s]*([-+]?\d*\.?\d+)'
     matches = re.findall(pattern, psn)
 
@@ -158,7 +167,8 @@ async def get_user(
 
         'first_name',
         'last_name',
-        'patronymic_name'
+        'patronymic_name',
+        'nickname',
     }.union(extra_fields)
 
     if not extra_fields:
@@ -295,6 +305,11 @@ async def start_conversation(
         buttons[-1].append(InlineKeyboardButton(
             '📝 Manage joined crews', callback_data=CS.CREW_MANAGE_JOINED
         ))
+
+    buttons.append([
+        InlineKeyboardButton('📜 Archive',
+                             callback_data=CS.CREW_ARCHIVE),
+    ])
 
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -1449,8 +1464,6 @@ async def list_public_crews(
         return CS.END
 
     keyboard = await get_keyboard_crew_list(crews, distance=True)
-    msg = f"Total number of existing crews: {await crews.acount()}\n\n"\
-          "Please choose Crew to join:"
 
     await update.effective_chat.send_message(msg, reply_markup=keyboard)
     return CS.DISPLAY_ITEM
@@ -1597,6 +1610,128 @@ async def exempt_from_crew(
     return CS.STOPPING
 
 
+# Crew Archive
+async def list_user_archived_crews(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display a list of all available crews or a passeger specific crews."""
+    query = update.callback_query
+    await query.answer()
+
+    user = await get_user(update, context)
+    crews = Crew.objects.filter(status=Crew.StatusVerbose.COMPLETED).filter(
+        Q(driver=user) | Q(join_requests__passenger=user)
+    )
+    context.user_data['user_archived_crews'] = crews
+    msg = "The total number of Crews (Completed) you took part in: "\
+        f"{await crews.acount()}\n\nPlease choose a Crew to upload track:"
+
+    error_msg = "There are no Crews (Completed) you took part in."
+
+    if not await crews.aexists():
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=error_msg
+        )
+        return CS.END
+
+    keyboard = await get_keyboard_crew_list(crews)
+
+    await query.edit_message_text(msg, reply_markup=keyboard)
+    return CS.DISPLAY_ITEM
+
+
+async def display_user_archived_crew(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Display detailed archived crew information."""
+    query = update.callback_query
+    await query.answer()
+
+    pk = int(query.data)
+    crew = await context.user_data['user_archived_crews']\
+        .select_related('departure', 'departure__search_request')\
+        .annotate(driver_tg_id=F('driver__telegram_id'))\
+        .prefetch_related('driver', 'passengers')\
+        .aget(pk=pk)
+
+    context.user_data['crew'] = crew
+
+    user = await get_user(update, context)
+    msg = await get_crew_detailed_info(crew, user.tz)
+
+    buttons = [
+        [
+            InlineKeyboardButton("☑️ Send track", callback_data=CS.SELECT)
+        ],
+        [
+            InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+            InlineKeyboardButton("❌ Cancel", callback_data=CS.STOPPING),
+        ]
+    ]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+    await query.edit_message_text(msg, reply_markup=keyboard)
+
+    return CS.SELECT_ITEM_ACTION
+
+
+async def request_track(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Request user to send track."""
+    query = update.callback_query
+    await query.answer()
+    await query.delete_message()
+
+    crew = context.user_data['crew']
+
+    msg = "Please share the track related to the crew"\
+        f"'{crew.title}-{crew.id}' departure:"
+
+    keyboard = await get_keyboard_cancel()
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=msg,
+                                   reply_markup=keyboard)
+    return CS.RECEIVE_FILE
+
+
+async def receive_track(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """Recieve track."""
+    user = await get_user(update, context)
+    crew = context.user_data['crew']
+
+    upload_dir = f"share/{crew.departure.id}/{crew.id}/"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    new_file = await update.effective_message.effective_attachment.get_file()
+
+    title = (
+        user.nickname if user.nickname else user.full_name.replace(' ', '_')
+    ) + dt.datetime.now(dt.UTC).strftime('%Y.%m.%d_%H%m')\
+        + new_file.file_path.split('.')[-1]
+
+    await new_file.download_to_drive(
+        f'{upload_dir}/{title}'
+    )
+
+    buttons = [[
+        InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
+    ]]
+
+    msg = f'Received track file: {new_file.file_size / 1024: .1f} Kb'
+    keyboard = InlineKeyboardMarkup(buttons)
+    await update.message.reply_text(msg, reply_markup=keyboard)
+
+    return CS.SHOWING
+
+
 def main() -> None:
     """Run the bot."""
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
@@ -1646,10 +1781,42 @@ def main() -> None:
                                      pattern=f'^{CS.END}$'),
             ],
         },
+
         fallbacks=[CommandHandler("cancel", stop_nested)],
         map_to_parent={
             CS.STOPPING: CS.END,
             CS.SHOWING: CS.SHOWING
+        },
+    )
+
+    crew_archive_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(
+            list_user_archived_crews,
+            pattern=f"^{CS.CREW_ARCHIVE}$"
+        )],
+
+        states={
+            CS.DISPLAY_ITEM: [
+                CallbackQueryHandler(display_user_archived_crew)
+            ],
+            CS.SELECT_ITEM_ACTION: [
+                CallbackQueryHandler(request_track, pattern=f"^{CS.SELECT}$"),
+                CallbackQueryHandler(list_user_archived_crews,
+                                     pattern=f'^{CS.BACK}$'),
+                CallbackQueryHandler(stop_nested, pattern=f"^{CS.STOPPING}$")
+            ],
+            CS.RECEIVE_FILE: [
+                MessageHandler(
+                    filters.Document.ALL & ~filters.COMMAND, receive_track
+                )
+            ],
+
+        },
+        fallbacks=[CommandHandler("cancel", stop_nested)],
+        map_to_parent={
+            CS.STOPPING: CS.STOPPING,
+            CS.SHOWING: CS.SHOWING,
+            CS.END: CS.END,
         },
     )
 
@@ -1760,6 +1927,7 @@ def main() -> None:
                 crew_create_handler,
                 crew_update_handler,
                 crew_joining_handler,
+                crew_archive_handler,
                 CallbackQueryHandler(info, pattern=f"^{CS.INFO}$"),
                 CallbackQueryHandler(help_command, pattern=f"^{CS.HELP}$"),
                 CallbackQueryHandler(start_conversation,
