@@ -1689,7 +1689,7 @@ async def request_track(
 
     crew = context.user_data['crew']
 
-    msg = "Please share the track related to the crew"\
+    msg = "Please share the track file (.gpx) related to the crew"\
         f"'{crew.title}-{crew.id}' departure:"
 
     keyboard = await get_keyboard_cancel()
@@ -1807,7 +1807,8 @@ def main() -> None:
             ],
             CS.RECEIVE_FILE: [
                 MessageHandler(
-                    filters.Document.ALL & ~filters.COMMAND, receive_track
+                    filters.Document.FileExtension('gpx') & ~filters.COMMAND,
+                    receive_track
                 )
             ],
 
