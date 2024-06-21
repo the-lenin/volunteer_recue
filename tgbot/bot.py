@@ -1707,7 +1707,7 @@ async def receive_track(
     user = await get_user(update, context)
     crew = context.user_data['crew']
 
-    upload_dir = f"share/{crew.departure.id}/{crew.id}/"
+    upload_dir = f"share/dep_{crew.departure.id}/{crew.title}_{crew.id}/"
     os.makedirs(upload_dir, exist_ok=True)
 
     new_file = await update.effective_message.effective_attachment.get_file()
@@ -1715,7 +1715,7 @@ async def receive_track(
     title = (
         user.nickname if user.nickname else user.full_name.replace(' ', '_')
     ) + dt.datetime.now(dt.UTC).strftime('%Y.%m.%d_%H%m')\
-        + new_file.file_path.split('.')[-1]
+        + '.' + new_file.file_path.split('.')[-1]
 
     await new_file.download_to_drive(
         f'{upload_dir}/{title}'
