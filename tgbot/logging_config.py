@@ -5,7 +5,9 @@ import os
 
 class CustomFormatter(logging.Formatter):
 
-    format = "%(asctime)s %(levelname)s [%(name)s]: %(message)s"
+    format = (
+        "%(asctime)s %(levelname)s [%(name)s] f`%(funcName)s`: %(message)s"
+    )
     level = "INFO"
 
     green = "\x1b[32;20m"

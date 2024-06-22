@@ -150,7 +150,9 @@ async def get_keyboard_cancel() -> ReplyKeyboardMarkup:
         ['/cancel']
     ]
 
-    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    return ReplyKeyboardMarkup(buttons,
+                               resize_keyboard=True,
+                               one_time_keyboard=True)
 
 
 async def get_user(
@@ -188,6 +190,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     user_id = update.effective_user.id
 
+    logger.info(f'TG: {user_id}')
+
     await TelegramUser.objects.aupdate_or_create(
         user_id=user_id,
         defaults={'last_action': dt.datetime.now(dt.UTC)}
@@ -209,13 +213,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Manually restart a list of allowed users."""
+    user_id = update.effective_user.id
+    logger.info(f'TG: {user_id}')
+
     try:
         global allowed_users, filter_users
         updated_users = await sync_to_async(get_allowed_users)()
         added_users = updated_users - allowed_users
         removed_users = allowed_users - updated_users
 
-        logger.debug(f'{added_users=}\n{removed_users=}')
+        logger.info(f'{added_users=}\n{removed_users=}')
 
         if added_users:
             filter_users.add_user_ids(added_users)
@@ -224,7 +231,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         allowed_users = updated_users
         logger.info('Restarted allowed_users:\n'
-                    f'{filter_users=}\n{update.effective_user.id=}')
+                    f'{filter_users=}\n{user_id=}')
 
         msg = 'Restarted'
         await context.bot.send_message(text=msg,
@@ -238,6 +245,9 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def restrict(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Restrict any unathorised user from any further action."""
+    user_id = update.effective_user.id
+    logger.info(f'TG: {user_id}, msg: {update.message.text}')
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Unathorised access."
@@ -254,6 +264,7 @@ async def start_conversation(
     query = update.callback_query
 
     user = await get_user(update, context)
+    logger.info(f'TG: {user.telegram_id}')
     crews = Crew.objects.exclude(status=Crew.StatusVerbose.COMPLETED)
     user_crews = crews.filter(driver=user).prefetch_related('driver')
     context.user_data['user_crews'] = user_crews
@@ -1366,6 +1377,8 @@ async def request_passenger_psn(
     await query.answer()
     await query.delete_message()
 
+    logger.info(f'TG: {update.effective_user.id}')
+
     msg = '/back\n\nPlease send your current coordinates: X, Y'
     keyboard = await get_keyboard_cancel()
 
@@ -1380,7 +1393,11 @@ async def confirm_passenger_psn(
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     """Request passenger postition."""
+    user_id = update.effective_user.id
     psn = update.message.text
+
+    logger.info(f'TG: {user_id}, psn: {psn}')
+
     try:
         psn = get_coordinates(psn)
         context.user_data['passenger_psn'] = psn
@@ -1391,7 +1408,7 @@ async def confirm_passenger_psn(
 
         logger.warning(
             "Passanger psn validation error."
-            f"TG: '{update.effective_user.id}'. Error: {e}"
+            f"TG: {user_id}. Error: {e}, psn: {psn}"
         )
 
         keyboard = await get_keyboard_cancel()
@@ -1434,9 +1451,10 @@ async def list_public_crews(
         status = query.data
         context.user_data['status'] = status
 
+    logger.info(f'TG: {user.telegram_id}, status: {repr(status)}')
+
     match status:
         case CS.CREW_JOINING:
-            # TODO: enter filter validation
             lat, long = context.user_data['passenger_psn']
             passenger_location = Point(lat, long, srid=4326)
 
@@ -1446,15 +1464,17 @@ async def list_public_crews(
                 distance=Distance('pickup_location', passenger_location)
             ).order_by('distance')
 
-            error_msg = "There are no available Crews to join."
             msg = "The total number of existing crews: "\
                 f"{await crews.acount()}\n\nPlease choose a Crew to join:"
 
+            error_msg = "There are no available Crews to join."
+
         case CS.CREW_MANAGE_JOINED:
             crews = Crew.objects.filter(join_requests__passenger=user)
-            error_msg = "There are no Crews you took part in."
             msg = "The total number of Crews you took part in: "\
                 f"{await crews.acount()}\n\nPlease choose a Crew to edit:"
+
+            error_msg = "There are no Crews you took part in."
 
     if not await crews.aexists():
         await context.bot.send_message(
@@ -1463,9 +1483,10 @@ async def list_public_crews(
         )
         return CS.END
 
+    context.user_data['crews'] = crews
     keyboard = await get_keyboard_crew_list(crews, distance=True)
 
-    await update.effective_chat.send_message(msg, reply_markup=keyboard)
+    await query.edit_message_text(msg, reply_markup=keyboard)
     return CS.DISPLAY_ITEM
 
 
@@ -1478,7 +1499,11 @@ async def display_crew_for_passenger(
     await query.answer()
 
     pk = int(query.data)
-    crew = await context.user_data['user_crews']\
+    user = await get_user(update, context)
+    logger.info(f'TG: {user.telegram_id}, crew_id: {pk}')
+
+    crews = context.user_data['crews']
+    crew = await crews\
         .select_related('departure', 'departure__search_request')\
         .annotate(driver_tg_id=F('driver__telegram_id'))\
         .prefetch_related('driver', 'passengers')\
@@ -1486,7 +1511,6 @@ async def display_crew_for_passenger(
 
     context.user_data['crew'] = crew
 
-    user = await get_user(update, context)
     msg = await get_crew_detailed_info(crew, user.tz)
 
     is_passenger = await JoinRequest.objects.filter(crew=crew, passenger=user)\
@@ -1527,6 +1551,8 @@ async def apply_to_crew(
 
     user = await get_user(update, context)
     crew = context.user_data['crew']
+
+    logger.info(f'TG: {user.telegram_id}, crew: {crew.id}')
 
     try:
         await JoinRequest.objects.acreate(
@@ -1570,6 +1596,8 @@ async def exempt_from_crew(
 
     user = await get_user(update, context)
     crew = context.user_data['crew']
+
+    logger.info(f'TG: {user.telegram_id}')
 
     try:
         joinrequest = await JoinRequest.objects.aget(
@@ -1620,10 +1648,13 @@ async def list_user_archived_crews(
     await query.answer()
 
     user = await get_user(update, context)
+    logger.info(f'TG: {user.telegram_id}')
+
     crews = Crew.objects.filter(status=Crew.StatusVerbose.COMPLETED).filter(
         Q(driver=user) | Q(join_requests__passenger=user)
     )
     context.user_data['user_archived_crews'] = crews
+
     msg = "The total number of Crews (Completed) you took part in: "\
         f"{await crews.acount()}\n\nPlease choose a Crew to upload track:"
 
@@ -1651,6 +1682,9 @@ async def display_user_archived_crew(
     await query.answer()
 
     pk = int(query.data)
+    user = await get_user(update, context)
+    logger.info(f'TG: {user.telegram_id}, pk: {pk}')
+
     crew = await context.user_data['user_archived_crews']\
         .select_related('departure', 'departure__search_request')\
         .annotate(driver_tg_id=F('driver__telegram_id'))\
@@ -1659,7 +1693,6 @@ async def display_user_archived_crew(
 
     context.user_data['crew'] = crew
 
-    user = await get_user(update, context)
     msg = await get_crew_detailed_info(crew, user.tz)
 
     buttons = [
@@ -1687,6 +1720,7 @@ async def request_track(
     await query.answer()
     await query.delete_message()
 
+    logger.info(f'TG: {update.effective_user.id}')
     crew = context.user_data['crew']
 
     msg = "Please share the track file (.gpx) related to the crew"\
@@ -1707,6 +1741,8 @@ async def receive_track(
     user = await get_user(update, context)
     crew = context.user_data['crew']
 
+    logger.info(f'TG: {user.telegram_id}')
+
     upload_dir = f"share/dep_{crew.departure.id}/{crew.title}_{crew.id}/"
     os.makedirs(upload_dir, exist_ok=True)
 
@@ -1724,8 +1760,9 @@ async def receive_track(
     buttons = [[
         InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
     ]]
-
-    msg = f'Received track file: {new_file.file_size / 1024: .1f} Kb'
+    file_size = f'{new_file.file_size / 1024: .1f} Kb'
+    logger.info(f'TG: {user.telegram_id}, new_file: {title}, file_size: {file_size}')
+    msg = f'Received track file: {file_size}'
     keyboard = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(msg, reply_markup=keyboard)
 
