@@ -31,6 +31,7 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = (
         (_('Details'), {
             "fields": (
+                'username',
                 "password",
                 'nickname',
                 "first_name",
