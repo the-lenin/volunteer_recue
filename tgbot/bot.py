@@ -403,18 +403,9 @@ async def settings_command(
         await query.answer()
         await query.delete_message()
 
-    user = await get_user(
-        update,
-        context,
-        {
-            'first_name',
-            'last_name',
-            'patronymic_name',
-        }
-    )
+    user = await get_user(update, context)
 
     # TODO: Feature to display language
-    # TZ for a user
     msg = f"""
 Full name: {user.full_name}
 Car: {'🚙 Yes' if user.has_car else '🚶 No'}
@@ -426,7 +417,7 @@ Please select what you want to change:
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(
-            "🚙 Car status", callback_data=CS.CHANGE_CAR_STATUS
+            "🚙 Switch car status", callback_data=CS.CHANGE_CAR_STATUS
         )],
         [InlineKeyboardButton(
             "🌐 Language", callback_data=CS.CHANGE_LANGUAGE
@@ -1289,6 +1280,7 @@ async def change_tz(
     # await query.delete_message()
 
     user = context.user_data['user']
+    logger.info(f'TG: {user.telegram_id}')
 
     msg = 'Go /back to settings\n\nYou current TZ: '\
         f'{TZOffsetHandler.represent_tz_offset(user.timezone)}\n'\
@@ -1312,6 +1304,9 @@ async def receive_user_tz(
     """Receive timezone reply and save it."""
     user = context.user_data["user"]
     tz = update.message.text
+
+    logger.info(f'TG: {user.telegram_id}, tz: {tz}')
+
     try:
         user.timezone = TZOffsetHandler.normalize_tz_offset(tz)
         await user.asave()
@@ -1336,6 +1331,7 @@ async def change_language(
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
     """Change user language."""
+    logger.info(f'TG: {update.effective_user.id}')
     pass
 
 
@@ -1347,11 +1343,18 @@ async def change_car_status(
     query = update.callback_query
     await query.answer()
 
-    user = context.user_data['user']
+    user = await get_user(update, context)
     try:
         user.has_car = not user.has_car
         await user.asave()
         msg = 'Car status is changed.'
+        if user.has_car is False:
+            msg += '\nCrew creation & update are disabled!'
+        else:
+            msg += '\nCrew creation & update are enabled!'
+
+        logger.info(f'Car status: {user.has_car}. TG: {user.telegram_id}')
+
     except Exception as e:
         logging.warning(f'Status is not changed. TG: {user.telegram_id}, {e}')
         msg = f'Status is not changed. {e}'
@@ -1468,6 +1471,7 @@ async def list_public_crews(
                 f"{await crews.acount()}\n\nPlease choose a Crew to join:"
 
             error_msg = "There are no available Crews to join."
+            keyboard = await get_keyboard_crew_list(crews, distance=True)
 
         case CS.CREW_MANAGE_JOINED:
             crews = Crew.objects.filter(join_requests__passenger=user)
@@ -1475,6 +1479,8 @@ async def list_public_crews(
                 f"{await crews.acount()}\n\nPlease choose a Crew to edit:"
 
             error_msg = "There are no Crews you took part in."
+
+            keyboard = await get_keyboard_crew_list(crews)
 
     if not await crews.aexists():
         await context.bot.send_message(
@@ -1484,7 +1490,6 @@ async def list_public_crews(
         return CS.END
 
     context.user_data['crews'] = crews
-    keyboard = await get_keyboard_crew_list(crews, distance=True)
 
     await query.edit_message_text(msg, reply_markup=keyboard)
     return CS.DISPLAY_ITEM
@@ -1760,9 +1765,14 @@ async def receive_track(
     buttons = [[
         InlineKeyboardButton("🔙 Back", callback_data=CS.BACK),
     ]]
+
     file_size = f'{new_file.file_size / 1024: .1f} Kb'
-    logger.info(f'TG: {user.telegram_id}, new_file: {title}, file_size: {file_size}')
     msg = f'Received track file: {file_size}'
+
+    logger.info(
+        f'TG: {user.telegram_id}, new_file: {title}, file_size: {file_size}'
+    )
+
     keyboard = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(msg, reply_markup=keyboard)
 
