@@ -32,8 +32,7 @@ class CustomUserAdmin(UserAdmin):
         (_('Details'), {
             "fields": (
                 'username',
-                "password1",
-                "password2",
+                "password",
                 'nickname',
                 "first_name",
                 "last_name",
