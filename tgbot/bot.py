@@ -337,6 +337,7 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Display present number of the open SearchRequest and Departures."""
     query = update.callback_query
 
+    logger.info(f'TG: {update.effective_user.id}')
     search_requests = await SearchRequest.objects.filter(
         status=SearchRequest.StatusVerbose.OPEN
     ).acount()
@@ -373,6 +374,8 @@ async def help_command(
     """Display help message."""
     query = update.callback_query
 
+    logger.info(f'TG: {update.effective_user.id}')
+
     msg = (
         "/start_conversation - start conversation and show available actions\n"
         "/info - display current status of activities\n"
@@ -404,6 +407,8 @@ async def settings_command(
         await query.delete_message()
 
     user = await get_user(update, context)
+
+    logger.info(f'TG: {user.telegram_id}')
 
     # TODO: Feature to display language
     msg = f"""
@@ -437,6 +442,8 @@ Please select what you want to change:
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """End conversation by command."""
+    logger.info(f'TG: {update.effective_user.id}')
+
     msg = "Canceled. Return back to /start_conversation."
     await context.bot.send_message(chat_id=update.effective_chat.id, text=msg)
     context.user_data.clear()
@@ -445,6 +452,8 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Return unknown command message if a command is not found."""
+    logger.info(f'TG: {update.effective_user.id}, msg: {update.message.text}')
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Sorry, I didn't understand that command."
@@ -459,6 +468,8 @@ async def list_departures(
     """Display a list of all departures with open status."""
     query = update.callback_query
     await query.answer()
+
+    logger.info(f'TG: {update.effective_user.id}')
 
     departures = Departure.objects.filter(status=Departure.StatusVerbose.OPEN)\
         .select_related('search_request')
@@ -483,7 +494,7 @@ async def list_departures(
         ])
 
     context.user_data['departures'] = departures
-    context.user_data['dep_keyboards'] = keyboard
+    # context.user_data['dep_keyboards'] = keyboard
 
     await query.edit_message_text(
         f"Total number of departures: {len(departures)}\n"
@@ -502,6 +513,8 @@ async def display_departure(
     await query.answer()
 
     index = int(query.data)
+    logger.info(f'TG: {update.effective_user.id}, departure: {index}')
+
     dep = context.user_data['departures'][index]
     context.user_data['departure'] = dep
 
@@ -572,7 +585,9 @@ async def receive_departure(
     await query.answer()
     await query.delete_message()
 
+    user = get_user(update, context)
     crew = context.user_data.get('crew', Crew())
+    logger.info(f'TG: {update.effective_user.id}')
 
     if getattr(crew, 'title'):
         msg = "Please edit the title of the crew:\n"\
@@ -581,15 +596,18 @@ async def receive_departure(
     else:
         crew.departure = context.user_data["departure"]
         context.user_data["crew"] = crew
+        dep_created_at = get_formated_dtime(
+            timezone.localtime(crew.departure.created_at, user.tz)
+        )
+
         msg = f"""
 Selected Departure:
     ID {crew.departure.pk} {crew.departure.search_request.full_name}
-    Created at {get_formated_dtime(crew.departure.created_at)}
+    Created at {dep_created_at}
 
 Please enter the title of the crew:
         """
-        if title := getattr(crew, 'title'):
-            msg += '\n' + title
+
     keyboard = await get_keyboard_crew(crew, 'title')
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg,
@@ -609,9 +627,12 @@ async def receive_crew_title(
     if answer != '>>> Next >>>':
         crew.title = answer
 
+    logger.info(f'TG: {update.effective_user.id}, title: {answer}')
+
     msg = f"Crew title: {crew.title}\n\n"\
           "Great! Now, please share the location of the crew"\
           " (e.g., address or coordinates)."
+
     if crew.pickup_location:
         msg += f'\n{crew.pickup_location.coords}'
 
@@ -626,14 +647,18 @@ async def receive_crew_location(
 ) -> int:
     """ Display the location and request to enter a crew capacity."""
     crew = context.user_data["crew"]
+
     # TODO: Validation or error message
     # Try and return back step if not working
     answer = update.message.text
     if answer != '>>> Next >>>':
         crew.pickup_location = Point(get_coordinates(answer))
 
+    logger.info(f'TG: {update.effective_user.id}, location: {answer}')
+
     msg = f"Location: {crew.pickup_location.coords}\n\n"\
           "Awesome! How many passengers could you take:"
+
     if crew.passengers_max:
         msg += '\n' + str(crew.passengers_max)
 
@@ -654,10 +679,13 @@ async def receive_crew_capacity(
     if answer != '>>> Next >>>':
         crew.passengers_max = answer
 
+    logger.info(f'TG: {update.effective_user.id}, capacity: {answer}')
+
     user = await get_user(update, context)
     msg = f"Max passengers: {crew.passengers_max}\n\n"\
         "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
 
+    # TODO: Split data and time
     # TODO: Display available formats
     if crew.pickup_datetime:
         msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}'
@@ -691,6 +719,8 @@ async def receive_crew_pickup_dt(
     if answer != '>>> Next >>>':
         crew.pickup_datetime = parse(answer).replace(tzinfo=user.tz)
 
+    logger.info(f'TG: {update.effective_user.id}, pickup datetime: {answer}')
+
     msg = await get_crew_public_info(crew, user.tz)\
         + '\n\nPlease select the next action.'
 
@@ -708,6 +738,7 @@ async def receive_crew_pickup_dt(
 
 
 async def make_broadcast(
+    update: Update,
     context: ContextTypes,
     message: str,
     users: list[int] | int = allowed_users
@@ -715,6 +746,10 @@ async def make_broadcast(
     """Broadcast message to all allowed users."""
     if isinstance(users, int):
         users = [users]
+
+    logger.info(
+        f'TG: {update.effective_user.id} broacast `{message}` to {users}'
+    )
 
     for user_id in users:
         try:
@@ -750,9 +785,9 @@ async def crew_save_or_update(
             msg = "Updated"
         await crew.asave()
 
-        broadcast_msg = f'📢 Crew is available ({msg}). 📢\n\n'\
-            + await get_crew_public_info(crew, user.tz)
-        await make_broadcast(context, broadcast_msg)
+        logger.info(
+            f'Crew {msg}: {crew.title}-{crew.id}. TG: {user.telegram_id}'
+        )
 
     except CustomUser.DoesNotExist:
         msg = "You are not found in database or don't have a car."\
@@ -761,13 +796,20 @@ async def crew_save_or_update(
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text=msg
         )
-        logging.warning(f'TG_id: {user.telegram_id}, User is not found in DB.')
+        logging.warning(f'User is not found in DB. TG: {user.telegram_id}')
         return CS.SHOWING
 
     except Exception as e:
-        msg = "Unexpected error. Crew is NOT created.\nTG: {user_id}, {e=}"
-        logger.warning(e)
+        msg = "Unexpected error. Crew is NOT created."\
+            f"TG: {user.telegram_id}, e: {e}"
+
+        logger.warning(msg)
         return CS.SHOWING
+
+    broadcast_msg = f'📢 Crew is available ({msg}). 📢\n\n'\
+        + await get_crew_public_info(crew, user.tz)
+
+    await make_broadcast(update, context, broadcast_msg)
 
     msg += '\nReturn back to Main menu.'
 
@@ -786,6 +828,8 @@ async def stop_nested(update: Update,
     if query:
         await query.answer()
         await query.delete_message()
+
+    logger.info(f'TG: {update.effective_user.id}')
     msg = "Canceled. Return back to /start_conversation."
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=msg,
@@ -841,6 +885,9 @@ async def list_crews(
     """Display a list of all available crews."""
     query = update.callback_query
     await query.answer()
+
+    logger.info(f'TG: {update.effective_user.id}')
+
     if context.user_data.get('crew'):
         del context.user_data['crew']
 
@@ -940,9 +987,12 @@ async def display_crew(update: Update,
 
     if context.user_data.get('crew'):
         crew = context.user_data['crew']
+        logger.info(f'TG: {update.effective_user.id}, crew: {crew.id}')
 
     else:
         pk = int(query.data)
+        logger.info(f'TG: {update.effective_user.id}, crew: {pk}')
+
         crew = await context.user_data['user_crews']\
             .select_related('departure', 'departure__search_request')\
             .aget(pk=pk)
@@ -1017,6 +1067,8 @@ async def crew_delete_confirmation(update: Update,
     user = await get_user(update, context)
     crew = context.user_data['crew']
 
+    logger.info(f'TG: {update.effective_user.id}, crew: {crew.pk}')
+
     msg = f'Do you want to delete crew: {crew.title}-{crew.pk}?\n'\
           + await get_crew_info(crew, user.tz)
 
@@ -1043,8 +1095,11 @@ async def crew_delete(update: Update,
         msg = f"Deleted crew: {title}"
         await crew.adelete()
         del context.user_data['crew']
+
+        logger.info(f'Deleted crew: {title}. TG: {update.effective_user.id}')
+
     except Exception as e:  # TODO: specify deletion error
-        logger.warning('Crew deletion error\n,'
+        logger.warning('Crew deletion error.'
                        f'TG: {query.from_user.id}, Crew: {title},\n{e=}')
         msg = f'Crew deletion error.\n{e}'
 
@@ -1092,15 +1147,17 @@ async def crew_change_status(
                 )
 
                 logger.info(f"Broacast crew status completed to: {passengers}")
-                await make_broadcast(context, msg, passengers)
+                await make_broadcast(update, context, msg, passengers)
 
         await crew.asave()
-        # TODO: log event
+        logger.info(
+            f'New crew status: {crew.get_status_display()}. '
+            f'TG: {user.telegram_id}'
+        )
 
     except Exception as e:
         logger.warning("Can't change crew status."
                        f'TG: {user.telegram_id}, Crew: {crew.pk}, {e=}')
-        # raise e
     buttons = [[InlineKeyboardButton("🔙 Back", callback_data=CS.BACK)]]
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -1113,12 +1170,14 @@ async def list_passengers(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Display a list of passager requests as buttons."""
+    """Display a list of passenger requests as buttons."""
     query = update.callback_query
     await query.answer()
 
     user = await get_user(update, context)
     crew = context.user_data['crew']
+
+    logger.info(f'TG: {user.telegram_id}, crew: {crew.id}')
 
     joinrequests = crew.join_requests.prefetch_related('passenger')
     context.user_data['joinrequests'] = joinrequests
@@ -1153,7 +1212,10 @@ async def display_passenger(
     """Display passenger instance with buttons."""
     query = update.callback_query
     await query.answer()
+
     pk = int(query.data)
+
+    logger.info(f'TG: {update.effective_user.id}, joinrequest: {pk}')
 
     joinrequests = context.user_data['joinrequests']
     jreq = await joinrequests.aget(pk=pk)
@@ -1210,16 +1272,21 @@ async def accept_join_request(update: Update,
         msg = f"Passenger '{jreq.passenger.full_name}' joined crew: {title}"
         await crew.aaccept_join_request(jreq)
 
+        logger.info(
+            f'Accepted JoinRequest: {jreq}. TG: {update.effective_user.id}'
+        )
+
         broadcast_msg = f"You are accepted to crew '{title}'"
-        await make_broadcast(context,
+        await make_broadcast(update, context,
                              broadcast_msg,
                              jreq.passenger.telegram_id)
 
     except Exception as e:
-        logger.warning('Passenger joining error\n TG: {query.from_user.id},'
+        logger.warning('Passenger joining error. TG: {query.from_user.id},'
                        f'Crew: {title}, JoinRequest: {jreq} \n{e=}')
+
         msg = f'Error. Passenger is not added to the crew.\n{e}'
-        raise e
+
     buttons = [
         [
             InlineKeyboardButton("🔙 Back",
@@ -1246,13 +1313,16 @@ async def reject_join_request(update: Update,
         msg = f"Passenger {jreq.passenger.full_name} rejected from crew: {title}"  # noqa: E501
         await crew.areject_join_request(jreq)
 
+        logger.info(
+            f'Rejected JoinRequest: {jreq}. TG: {update.effective_user.id}'
+        )
         broadcast_msg = f"You are rejected to crew '{title}'"
-        await make_broadcast(context,
+        await make_broadcast(update, context,
                              broadcast_msg,
                              jreq.passenger.telegram_id)
 
     except Exception as e:
-        logger.warning('Passenger rejection error\n TG: {query.from_user.id},'
+        logger.warning('Passenger rejection error. TG: {query.from_user.id},'
                        f'Crew: {title}, JoinRequest: {jreq} \n{e=}')
         msg = f'Error. Passenger rejection is unsuccessfull.\n{e}'
 
@@ -1505,6 +1575,7 @@ async def display_crew_for_passenger(
 
     pk = int(query.data)
     user = await get_user(update, context)
+
     logger.info(f'TG: {user.telegram_id}, crew_id: {pk}')
 
     crews = context.user_data['crews']
@@ -1573,7 +1644,7 @@ async def apply_to_crew(
         broadcast_msg = f"🟢 Crew '{crew}': +1 join request! "\
             f"({num_joinrequests}/{crew.passengers_max})"
 
-        await make_broadcast(context, broadcast_msg, crew.driver_tg_id)
+        await make_broadcast(update, context, broadcast_msg, crew.driver_tg_id)
         msg = "Join request is sent"
 
     except Exception as e:
@@ -1628,7 +1699,7 @@ async def exempt_from_crew(
                     f"User '{user.pk}: {user.full_name}' left crew '{crew}'"
             )
 
-        await make_broadcast(context, broadcast_msg, crew.driver_tg_id)
+        await make_broadcast(update, context, broadcast_msg, crew.driver_tg_id)
 
     except Exception as e:
         msg = 'Join request is failed. '\
@@ -1688,6 +1759,7 @@ async def display_user_archived_crew(
 
     pk = int(query.data)
     user = await get_user(update, context)
+
     logger.info(f'TG: {user.telegram_id}, pk: {pk}')
 
     crew = await context.user_data['user_archived_crews']\
