@@ -109,23 +109,44 @@ class ConversationStates:
 CS = ConversationStates
 
 
-def get_coordinates(psn: str) -> tuple[float]:
-    """Parse coordinates string, validate it and return tuple (lat, long)."""
-    pattern = r'([-+]?\d*\.?\d+)[,\s]*([-+]?\d*\.?\d+)'
+def str_to_coordinates(psn: str) -> tuple[float, float]:
+    """Parse coordinates string, validate it, and return tuple (lat, long)."""
+    pattern = r'([-+]?\d*\.?\d+)[,\s]+([-+]?\d*\.?\d+)'
     matches = re.findall(pattern, psn)
 
     if matches:
-        lat, long = list(map(float, matches[0]))
+        lat, lon = map(float, matches[0])
 
-        if all((bool(-90 <= lat <= 90), bool(-180 <= long <= 180))):
-            return lat, long
-
+        if -90 <= lat <= 90 and -180 <= lon <= 180:
+            return lat, lon
         raise ValueError(
-            "Exceed limit. -180 <= Latitude <= 180. -90 <= Longitude <= 90."
+            "Exceed limit: -90 <= Latitude <= 90, -180 <= Longitude <= 180."
         )
+    raise ValueError(
+        "Invalid coordinates format. `Latitude, Longitude` is required."
+    )
 
-    else:
-        raise ValueError("Invalid coordinates format. `Latitude, Longitude`.")
+
+def get_coordinates(update: Update) -> tuple[float, float]:
+    """Parse update and return coordinates if location is present."""
+    if update.message:
+        location = update.message.location
+
+    elif update.edited_message:
+        location = update.edited_message.location
+
+    if location:
+        return location.latitude, location.longitude
+
+    try:
+        return str_to_coordinates(update.message.text)
+
+    except Exception as e:
+        user_id = update.message.from_user.id
+        logger.warning(
+            f"Passanger position validation error. TG: {user_id}. Error: {e}"
+        )
+        raise e
 
 
 def get_allowed_users() -> set:
@@ -585,7 +606,7 @@ async def receive_departure(
     await query.answer()
     await query.delete_message()
 
-    user = get_user(update, context)
+    user = await get_user(update, context)
     crew = context.user_data.get('crew', Crew())
     logger.info(f'TG: {update.effective_user.id}')
 
@@ -650,11 +671,13 @@ async def receive_crew_location(
 
     # TODO: Validation or error message
     # Try and return back step if not working
-    answer = update.message.text
-    if answer != '>>> Next >>>':
-        crew.pickup_location = Point(get_coordinates(answer))
+    try:
+        if update.message.text != '>>> Next >>>':
+            crew.pickup_location = Point(get_coordinates(update))
+    except Exception:
+        pass
 
-    logger.info(f'TG: {update.effective_user.id}, location: {answer}')
+    logger.info(f'TG: {update.effective_user.id}')
 
     msg = f"Location: {crew.pickup_location.coords}\n\n"\
           "Awesome! How many passengers could you take:"
@@ -1445,14 +1468,14 @@ async def request_passenger_psn(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Request passenger postition."""
+    """Request passenger position."""
     query = update.callback_query
     await query.answer()
     await query.delete_message()
 
     logger.info(f'TG: {update.effective_user.id}')
 
-    msg = '/back\n\nPlease send your current coordinates: X, Y'
+    msg = '/back\n\nPlease share your current location (or coordinates: X, Y)'
     keyboard = await get_keyboard_cancel()
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -1465,24 +1488,17 @@ async def confirm_passenger_psn(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
-    """Request passenger postition."""
+    """Confirem passenger position."""
     user_id = update.effective_user.id
-    psn = update.message.text
 
-    logger.info(f'TG: {user_id}, psn: {psn}')
+    logger.info(f'TG: {user_id}')
 
     try:
-        psn = get_coordinates(psn)
-        context.user_data['passenger_psn'] = psn
+        psn = get_coordinates(update)
 
     except Exception as e:
-        error_msg = f"Unexpected error: {e}\n"\
-            "Please send your current coordinates: X, Y"
-
-        logger.warning(
-            "Passanger psn validation error."
-            f"TG: {user_id}. Error: {e}, psn: {psn}"
-        )
+        error_msg = f"Error: {e}\n"\
+            'Please share your current location (or coordinates: X, Y)'
 
         keyboard = await get_keyboard_cancel()
         await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -1490,6 +1506,9 @@ async def confirm_passenger_psn(
                                        reply_markup=keyboard)
 
         return CS.CREW_MANAGE_PASSENGERS
+
+    context.user_data['passenger_psn'] = psn
+    logger.info(f'TG: {user_id}, psn: {psn}')
 
     msg = f'Your position is: {psn}\n\nPlease confirm.'
     buttons = [
@@ -1879,8 +1898,12 @@ def main() -> None:
                                receive_crew_title),
             ],
             CS.CREW_LOCATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               receive_crew_location),
+                MessageHandler(
+                    (filters.TEXT & (
+                        filters.LOCATION & ~filters.UpdateType.EDITED_MESSAGE
+                    ) & ~filters.COMMAND),
+                    receive_crew_location
+                ),
             ],
             CS.CREW_CAPACITY: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
@@ -2062,7 +2085,9 @@ def main() -> None:
             CS.CREW_MANAGE_PASSENGERS: [
                 CommandHandler("back", start_conversation),
                 MessageHandler(
-                    filters.TEXT & ~filters.COMMAND,
+                    (filters.TEXT | (
+                        filters.LOCATION & ~filters.UpdateType.EDITED_MESSAGE
+                    )) & ~filters.COMMAND,
                     confirm_passenger_psn
                 )
             ],
