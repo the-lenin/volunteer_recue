@@ -32,6 +32,7 @@ aiohttp = "^3.9.5"
 setuptools = "^69.5.1"
 djangorestframework = "^3.15.1"
 python-dateutil = "^2.9.0.post0"
+yandex-geocoder = "^3.0.1"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.0.0"
