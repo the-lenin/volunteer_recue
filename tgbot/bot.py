@@ -4,6 +4,8 @@ import django
 import re
 import datetime as dt
 from dateutil.parser import parse
+# from decimal import Decimal
+from yandex_geocoder import Client
 from asgiref.sync import sync_to_async
 
 from telegram import (
@@ -60,6 +62,8 @@ logging.getLogger("pudb").setLevel(logging.WARNING)
 # logger.setLevel(logging.DEBUG)
 logger.info(f'Start logging: {logger.getEffectiveLevel()}')
 
+geocoder = Client(os.getenv('YMAP_TOKEN'))
+
 
 class ConversationStates:
     (
@@ -113,6 +117,13 @@ def str_to_coordinates(psn: str) -> tuple[float, float]:
     """Parse coordinates string, validate it, and return tuple (lat, long)."""
     pattern = r'([-+]?\d*\.?\d+)[,\s]+([-+]?\d*\.?\d+)'
     matches = re.findall(pattern, psn)
+
+    address_pattern = r'[a-zA-ZА-Яа-яЁё]+'
+    is_address = re.search(address_pattern, psn)
+
+    if is_address:
+        lon, lat = map(float, geocoder.coordinates(psn))
+        return lat, lon
 
     if matches:
         lat, lon = map(float, matches[0])
@@ -1475,7 +1486,7 @@ async def request_passenger_psn(
 
     logger.info(f'TG: {update.effective_user.id}')
 
-    msg = '/back\n\nPlease share your current location (or coordinates: X, Y)'
+    msg = '/back\n\nPlease share your location (coordinates: X, Y; or address)'
     keyboard = await get_keyboard_cancel()
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -1498,7 +1509,7 @@ async def confirm_passenger_psn(
 
     except Exception as e:
         error_msg = f"Error: {e}\n"\
-            'Please share your current location (or coordinates: X, Y)'
+            'Please share your location (coordinates: X, Y; or address)'
 
         keyboard = await get_keyboard_cancel()
         await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -1524,6 +1535,10 @@ async def confirm_passenger_psn(
     ]
     keyboard = InlineKeyboardMarkup(buttons)
 
+    await update.effective_chat.send_location(
+        latitude=psn[0],
+        longitude=psn[1],
+    )
     await update.effective_chat.send_message(msg, reply_markup=keyboard)
     return CS.SELECT_ACTION
 
