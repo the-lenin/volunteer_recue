@@ -662,7 +662,7 @@ async def receive_crew_title(
     logger.info(f'TG: {update.effective_user.id}, title: {answer}')
 
     msg = f"Crew title: {crew.title}\n\n"\
-          "Great! Now, please share the location of the crew"\
+          "Great! Now, please share the pickup location of the crew"\
           " (e.g., address or coordinates)."
 
     if crew.pickup_location:
@@ -680,13 +680,21 @@ async def receive_crew_location(
     """ Display the location and request to enter a crew capacity."""
     crew = context.user_data["crew"]
 
-    # TODO: Validation or error message
-    # Try and return back step if not working
     try:
         if update.message.text != '>>> Next >>>':
             crew.pickup_location = Point(get_coordinates(update))
-    except Exception:
-        pass
+
+    except Exception as e:
+        error_msg = f"Error: {e}\n"\
+          "Please share share the pickup location of the crew"\
+          " (e.g., address or coordinates)."
+
+        keyboard = await get_keyboard_cancel()
+        await update.message.reply_text(chat_id=update.effective_chat.id,
+                                        text=error_msg,
+                                        reply_markup=keyboard)
+
+        return CS.CREW_LOCATION
 
     logger.info(f'TG: {update.effective_user.id}')
 
