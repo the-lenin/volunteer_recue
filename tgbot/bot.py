@@ -254,7 +254,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         added_users = updated_users - allowed_users
         removed_users = allowed_users - updated_users
 
-        logger.info(f'{added_users=}\n{removed_users=}')
+        logger.info(f'Users added: {added_users} | Removed: {removed_users}')
 
         if added_users:
             filter_users.add_user_ids(added_users)
@@ -262,10 +262,9 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             filter_users.remove_user_ids(removed_users)
 
         allowed_users = updated_users
-        logger.info('Restarted allowed_users:\n'
-                    f'{filter_users=}\n{user_id=}')
+        logger.info('Restarted allowed_users: {filter_users}. TG: {user_id}')
 
-        msg = 'Restarted'
+        msg = 'Restarted /start'
         await context.bot.send_message(text=msg,
                                        chat_id=update.effective_chat.id)
     except Exception as e:
