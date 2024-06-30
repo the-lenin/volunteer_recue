@@ -40,6 +40,7 @@ ipython = "^8.21.0"
 coverage = "^7.4.1"
 selenium = "^4.17.2"
 pudb = "^2024.1"
+freezegun = "^1.5.1"
 
 [build-system]
 requires = ["poetry-core"]
