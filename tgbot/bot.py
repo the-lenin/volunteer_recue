@@ -27,6 +27,7 @@ from warnings import filterwarnings
 from telegram.warnings import PTBUserWarning
 
 from tgbot.logging_config import setup_logging_config
+from tgbot.utils import str_to_dt
 
 filterwarnings(
     action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning
@@ -93,7 +94,8 @@ class ConversationStates:
         CREW_TITLE,
         CREW_LOCATION,
         CREW_CAPACITY,
-        CREW_DEPARTURE_TIME,
+        CREW_PICKUP_DATE,
+        CREW_PICKUP_TIME,
         CREW_SELECT_ACTION,
         CREW_MANAGE_PASSENGERS,
 
@@ -105,7 +107,7 @@ class ConversationStates:
 
         DELETE,
         STATUS,
-    ) = map(chr, range(30))
+    ) = map(chr, range(31))
 
     END = ConversationHandler.END
 
@@ -179,6 +181,44 @@ filter_users = filters.User(user_id=allowed_users)
 async def get_keyboard_cancel() -> ReplyKeyboardMarkup:
     """Return ReplyKeyboardMarkup with only /cancel button."""
     buttons = [
+        ['/cancel']
+    ]
+
+    return ReplyKeyboardMarkup(buttons,
+                               resize_keyboard=True,
+                               one_time_keyboard=True)
+
+
+async def get_rkeyboard_date(update, context) -> ReplyKeyboardMarkup:
+    """Return ReplyKeyboardMarkup with only /cancel button."""
+    user = await get_user(update, context)
+    today = dt.datetime.today().astimezone(user.tz)
+
+    week_dt = [today + dt.timedelta(days=d) for d in range(7)]
+    days = [f'{d.day:02d}' for d in week_dt]
+
+    # weekdays = [d.strftime('%A')[:2] for d in week_dt]
+    # week_skipped_dt = [
+    #     None if d < today.weekday() else today + dt.timedelta(days=(
+    #         d - today.weekday()
+    #     )) for d in range(7)
+    # ]
+
+    # days_skipped = [str(d.day) if d else '...' for d in week_skipped_dt]
+    # weekdays_skipped = [
+    #     d.strftime('%A')[:2] if d else '...' for d in week_skipped_dt
+    # ]
+
+    buttons = [
+        # ['Today', 'Tomorrow'],
+        [
+            f'Today: {today.date()}',
+            f'Tomorrow: {(today + dt.timedelta(days=1)).date()}'
+        ],
+        # weekdays,
+        days,
+        # weekdays_skipped,
+        # days_skipped,
         ['/cancel']
     ]
 
@@ -395,7 +435,8 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await query.edit_message_text(msg, reply_markup=keyboard)
         return CS.SHOWING
     else:
-        await update.message.reply_text(msg)
+        # keyboard = await get_rkeyboard_date(update, context)
+        await update.message.reply_text(msg)  # , reply_markup=keyboard)
 
 
 async def help_command(
@@ -724,16 +765,44 @@ async def receive_crew_capacity(
 
     user = await get_user(update, context)
     msg = f"Max passengers: {crew.passengers_max}\n\n"\
-        "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
-
+        "Set up pickup date: today, tomorrow, `DD.MM.YYYY"
+    # "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
     # TODO: Split data and time
     # TODO: Display available formats
     if crew.pickup_datetime:
-        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}'
+        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz).date}'
+
+    # keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
+    keyboard = await get_rkeyboard_date(update, context)
+    await update.message.reply_text(msg, reply_markup=keyboard)
+    return CS.CREW_PICKUP_DATE
+
+
+async def receive_crew_pickup_date(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> int:
+    """
+    Display crew capacity and request to enter a crew departure datetime.
+    """
+    crew = context.user_data["crew"]
+    user = await get_user(update, context)
+    answer = update.message.text
+    if answer != '>>> Next >>>':
+        crew.pickup_datetime = str_to_dt(answer, user.tz)
+    logger.info(f'TG: {update.effective_user.id}, pickup date: {answer}')
+
+    user = await get_user(update, context)
+    msg = f"Pickup date: {crew.pickup_datetime: %d.%m.%Y}\n\n"\
+        "Finally! Set up pickup time: `HH:MM (24 Hours format)"
+
+    # if crew.pickup_datetime:
+    #     msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}'
 
     keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
+    # keyboard = await get_rkeyboard_date(update, context)
     await update.message.reply_text(msg, reply_markup=keyboard)
-    return CS.CREW_DEPARTURE_TIME
+    return CS.CREW_PICKUP_TIME
 
 
 async def get_crew_public_info(crew: Crew, tz: dt.timezone) -> str:
@@ -749,7 +818,7 @@ Pickup datetime: {timezone.localtime(crew.pickup_datetime, tz)}
     return msg
 
 
-async def receive_crew_pickup_dt(
+async def receive_crew_pickup_time(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> int:
@@ -760,7 +829,7 @@ async def receive_crew_pickup_dt(
     if answer != '>>> Next >>>':
         crew.pickup_datetime = parse(answer).replace(tzinfo=user.tz)
 
-    logger.info(f'TG: {update.effective_user.id}, pickup datetime: {answer}')
+    logger.info(f'TG: {update.effective_user.id}, pickup time: {answer}')
 
     msg = await get_crew_public_info(crew, user.tz)\
         + '\n\nPlease select the next action.'
@@ -1921,9 +1990,9 @@ def main() -> None:
             ],
             CS.CREW_LOCATION: [
                 MessageHandler(
-                    (filters.TEXT & (
+                    (filters.TEXT | (
                         filters.LOCATION & ~filters.UpdateType.EDITED_MESSAGE
-                    ) & ~filters.COMMAND),
+                    )) & ~filters.COMMAND,
                     receive_crew_location
                 ),
             ],
@@ -1931,11 +2000,14 @@ def main() -> None:
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
                                receive_crew_capacity),
             ],
-            CS.CREW_DEPARTURE_TIME: [
+            CS.CREW_PICKUP_DATE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               receive_crew_pickup_dt),
+                               receive_crew_pickup_date),
             ],
-
+            CS.CREW_PICKUP_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
+                               receive_crew_pickup_time),
+            ],
             CS.CREW_SELECT_ACTION: [
                 CallbackQueryHandler(crew_save_or_update,
                                      pattern=f'^{CS.SELECT}$'),
