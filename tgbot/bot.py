@@ -630,6 +630,19 @@ Tasks ({await dep.tasks.acount()}):
 
 
 # Crew creation & update
+async def get_crew_public_info(crew: Crew, tz: dt.timezone) -> str:
+    """Return public crew info."""
+    msg = f"""
+Departure {crew.departure}
+
+Crew title: '{crew.title}'
+Max passengers: {crew.passengers_max}
+Pickup location: {crew.pickup_location.coords}
+Pickup datetime: {timezone.localtime(crew.pickup_datetime, tz)}
+    """
+    return msg
+
+
 async def get_keyboard_crew(
     crew: Crew,
     field: str = None
@@ -789,8 +802,12 @@ async def receive_crew_pickup_date(
     user = await get_user(update, context)
     answer = update.message.text
     if answer != '>>> Next >>>':
-        crew.pickup_datetime = str_to_dt(answer, user.tz)
-    logger.info(f'TG: {update.effective_user.id}, pickup date: {answer}')
+        try:
+            crew.pickup_datetime = str_to_dt(answer, user.tz)
+        except Exception as e:
+            logger.warning(f'Error: {e},  TG: {user.telegram_id}')
+
+    logger.info(f'TG: {user.telegram_id}, pickup date: {answer}')
 
     user = await get_user(update, context)
     msg = f"Pickup date: {crew.pickup_datetime: %d.%m.%Y}\n\n"\
@@ -805,19 +822,6 @@ async def receive_crew_pickup_date(
     return CS.CREW_PICKUP_TIME
 
 
-async def get_crew_public_info(crew: Crew, tz: dt.timezone) -> str:
-    """Return public crew info."""
-    msg = f"""
-Departure {crew.departure}
-
-Crew title: '{crew.title}'
-Max passengers: {crew.passengers_max}
-Pickup location: {crew.pickup_location.coords}
-Pickup datetime: {timezone.localtime(crew.pickup_datetime, tz)}
-    """
-    return msg
-
-
 async def receive_crew_pickup_time(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -826,8 +830,13 @@ async def receive_crew_pickup_time(
     crew = context.user_data["crew"]
     user = await get_user(update, context)
     answer = update.message.text
+
     if answer != '>>> Next >>>':
-        crew.pickup_datetime = parse(answer).replace(tzinfo=user.tz)
+        time = dt.time.fromisoformat(answer)
+        crew.pickup_datetime = crew.pickup_datetime.replace(
+            hour=time.hour,
+            minute=time.minute
+        )
 
     logger.info(f'TG: {update.effective_user.id}, pickup time: {answer}')
 
