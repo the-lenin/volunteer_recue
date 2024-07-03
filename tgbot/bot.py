@@ -743,8 +743,7 @@ async def receive_crew_location(
           " (e.g., address or coordinates)."
 
         keyboard = await get_keyboard_cancel()
-        await update.message.reply_text(chat_id=update.effective_chat.id,
-                                        text=error_msg,
+        await update.message.reply_text(text=error_msg,
                                         reply_markup=keyboard)
 
         return CS.CREW_LOCATION
@@ -778,14 +777,12 @@ async def receive_crew_capacity(
 
     user = await get_user(update, context)
     msg = f"Max passengers: {crew.passengers_max}\n\n"\
-        "Set up pickup date: today, tomorrow, `DD.MM.YYYY"
-    # "Finally! Set up pickup date & time: `DD.MM.YYYY HH:MM"
-    # TODO: Split data and time
-    # TODO: Display available formats
-    if crew.pickup_datetime:
-        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz).date}'
+        "Select one or type pickup date: today tomorrow, `DD.MM.YYYY`"
 
-    # keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
+    if crew.pickup_datetime:
+        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz):%d.%m.%Y}'
+        # TODO: Add next button
+
     keyboard = await get_rkeyboard_date(update, context)
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_PICKUP_DATE
@@ -807,17 +804,24 @@ async def receive_crew_pickup_date(
         except Exception as e:
             logger.warning(f'Error: {e},  TG: {user.telegram_id}')
 
+            error_msg = f'Error: {e}.\n'\
+                "Select one or type pickup date: today tomorrow, `DD.MM.YYYY`"
+
+            keyboard = await get_keyboard_cancel()
+            await update.message.reply_text(text=error_msg,
+                                            reply_markup=keyboard)
+            return CS.CREW_PICKUP_DATE
+
     logger.info(f'TG: {user.telegram_id}, pickup date: {answer}')
 
     user = await get_user(update, context)
     msg = f"Pickup date: {crew.pickup_datetime: %d.%m.%Y}\n\n"\
         "Finally! Set up pickup time: `HH:MM (24 Hours format)"
 
-    # if crew.pickup_datetime:
-    #     msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}'
+    if crew.pickup_datetime:
+        msg += f'\n{timezone.localtime(crew.pickup_datetime, user.tz)}:%H:%M'
 
     keyboard = await get_keyboard_crew(crew, 'pickup_datetime')
-    # keyboard = await get_rkeyboard_date(update, context)
     await update.message.reply_text(msg, reply_markup=keyboard)
     return CS.CREW_PICKUP_TIME
 
@@ -832,11 +836,24 @@ async def receive_crew_pickup_time(
     answer = update.message.text
 
     if answer != '>>> Next >>>':
-        time = dt.time.fromisoformat(answer)
-        crew.pickup_datetime = crew.pickup_datetime.replace(
-            hour=time.hour,
-            minute=time.minute
-        )
+        try:
+            time = dt.time.fromisoformat(answer)
+            crew.pickup_datetime = crew.pickup_datetime.replace(
+                hour=time.hour,
+                minute=time.minute
+            )
+        except Exception as e:
+            logger.info(
+                f'Error: {e}, TG: {user.telegram_id}, pickup time: {answer}'
+            )
+
+            error_msg = f'Error: {e}.\n'\
+                'Try again following 24 Hrs format: HH:MM'
+
+            keyboard = await get_keyboard_cancel()
+            await update.message.reply_text(text=error_msg,
+                                            reply_markup=keyboard)
+            return CS.CREW_PICKUP_TIME
 
     logger.info(f'TG: {update.effective_user.id}, pickup time: {answer}')
 
