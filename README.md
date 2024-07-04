@@ -2,33 +2,32 @@
 1. Клонируем проект:
    В консоли (Bash Linux) заходим в нужную нам дирректорию и вводим:
    
-   git clone git@github.com:DREU007/volunteer_recue.git
+   ```git clone git@github.com:DREU007/volunteer_recue.git```
 
 2. Переходим в дирректорию volunteer_recue либо открываем проект в своей IDE.
-   Устанавливаем зависимости через команду:
+   Устанавливаем зависимости через команду и активируем виртуально окружение:
+   ```
    poetry install
-
-   и активируем виртуально окружение:
    poetry shell 
+   ```
    
    В случае, если poetry не установлен, тогда переходим по ссылке ниже
    https://python-poetry.org/docs/#installing-with-pipx
    и устанавливаем согласно инструкции
    
 3. Установите библиотеку для обработки и анализа геопространственных данных 
-
+```
    sudo apt update
-
    sudo apt install gdal-bin libgdal-dev
-
+```
 3. Скопируйте файл .env.example в туже директорию, переименовав его в .env
 
 4. Создайте базу данных PostgreSQL:
+```
+   sudo apt install postgresql  `- установка  PostgreSQL`
 
-   sudo apt install postgresql  - установка  PostgreSQL
-
-   sudo apt-get install postgis  -  установка расширения postgis
-   
+   sudo apt-get install postgis  `- установка расширения postgis`
+```   
    Создайте базу данных при помощи PGAdmin либо командной строки. 
    https://www.postgresql.org/docs/   ссылка на официальную документацию
    
