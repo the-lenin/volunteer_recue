@@ -46,10 +46,11 @@
    make migrate
    
 ##### 7. Создайте своего телеграмм бота через бот @BotFather (https://t.me/BotFather)
-   заполните соответствующие поля в файле .env с токеном HTTP API 
+   заполните соответствующие поля в файле .env с токеном HTTP API
+```
    TELEGRAM_LINK=
    TELEGRAM_TOKEN=  
-   
+ ```  
 ##### 8. Зарегистрируйтесь и получите свой токен для API в яндекс картах.
    https://yandex.com/dev/jsapi-v2-1/doc/en/#get-api-key кликните по ссылке на  `Developer's Dashboard`
    далее следуйте инструкции.
