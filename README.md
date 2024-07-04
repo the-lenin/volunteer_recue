@@ -40,23 +40,30 @@
    Например: DATABASE_URL=postgis://andrey:bykmce76ce@localhost:5432/volounteers_test
    
 5. Установите расширение PostGIS для вашей БД и сделайте связь проекта с вашей БД:
+
    make pg-extension   - устанавливает расширение PostGIS
+
    make migrate        - связывает проект с БД
    
    В случае, если при выполнении команды make migrate будет отказано в доступе, то выполните команду 
+
    make pg-extention-sudo     далее
    make migrate
    
 6. Создайте своего телеграмм бота через бот @BotFather (https://t.me/BotFather)
    заполните соответствующие поля в файле .env с токеном HTTP API 
+
    TELEGRAM_LINK=
+
    TELEGRAM_TOKEN=  
    
 7. Зарегистрируйтесь и получите свой токен для API в яндекс картах.
    https://yandex.com/dev/jsapi-v2-1/doc/en/#get-api-key кликните по ссылке на  Developer's Dashboard
    далее следуйте инструкции.
    Заполните поле в файле  .env
+
    YMAP_TOKEN=
+
    Далее заполните оставшиеся необходимые вам поля в этом файле.
    
 8. Запустите сервер django командой make dev либо make prod
