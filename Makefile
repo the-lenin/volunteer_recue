@@ -22,6 +22,10 @@ makemigrations:
 pg-extension:
 	psql "$(DATABASE_URL_EXT)" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
+pg-extension-sudo:
+	@echo "Activating PostGIS extension on existing database"
+	sudo -u postgres psql -d $(DB_NAME) -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
 pg-shell:
 	$(MANAGE) dbshell
 
