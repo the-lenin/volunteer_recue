@@ -7,6 +7,7 @@
 2. Переходим в дирректорию volunteer_recue либо открываем проект в своей IDE.
    Устанавливаем зависимости через команду:
    poetry install
+
    и активируем виртуально окружение:
    poetry shell 
    
@@ -14,21 +15,27 @@
    https://python-poetry.org/docs/#installing-with-pipx
    и устанавливаем согласно инструкции
    
-3. Установите библиотеку для обработки и анализа геопространственных данных
+3. Установите библиотеку для обработки и анализа геопространственных данных 
+
    sudo apt update
+
    sudo apt install gdal-bin libgdal-dev
 
 3. Скопируйте файл .env.example в туже директорию, переименовав его в .env
 
 4. Создайте базу данных PostgreSQL:
+
    sudo apt install postgresql  - установка  PostgreSQL
+
    sudo apt-get install postgis  -  установка расширения postgis
    
    Создайте базу данных при помощи PGAdmin либо командной строки. 
    https://www.postgresql.org/docs/   ссылка на официальную документацию
    
    Внесите данные о вашей базе даных в файл .env
+
    DATABASE_URL=postgis://[user[:password]@][hostname][:port][/dbname][?param1=value1&...]
+
    DATABASE_URL_EXT=postgres://[user[:password]@][hostname][:port][/dbname][?param1=value1&...]
    Например: DATABASE_URL=postgis://andrey:bykmce76ce@localhost:5432/volounteers_test
    
